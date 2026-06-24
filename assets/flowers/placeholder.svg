@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300" role="img" aria-labelledby="title">
+  <title id="title">咖啡店花束占位插画</title>
+  <g fill="none" stroke="#24332c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M120 263c-5-45-4-92 2-143"/>
+    <path d="M119 211c-25-6-44-21-58-43"/>
+    <path d="M121 193c25-7 43-22 55-45"/>
+  </g>
+  <g stroke="#24332c" stroke-width="5">
+    <path fill="#b9dfca" d="M74 214c-30-2-48-18-52-45 31-1 51 13 61 39z"/>
+    <path fill="#8fcbb0" d="M164 197c29-6 46-24 47-51-31 3-49 19-56 46z"/>
+  </g>
+  <g stroke="#24332c" stroke-width="5">
+    <circle cx="120" cy="93" r="42" fill="#ffd8a8"/>
+    <circle cx="82" cy="113" r="34" fill="#efb6c5"/>
+    <circle cx="159" cy="113" r="34" fill="#b9c8f4"/>
+    <circle cx="96" cy="70" r="32" fill="#f7c6a3"/>
+    <circle cx="146" cy="69" r="32" fill="#e7c3ee"/>
+    <circle cx="120" cy="112" r="36" fill="#f2d27d"/>
+  </g>
+  <g fill="#6e422b">
+    <ellipse cx="110" cy="102" rx="8" ry="12" transform="rotate(-24 110 102)"/>
+    <ellipse cx="132" cy="115" rx="8" ry="12" transform="rotate(28 132 115)"/>
+    <ellipse cx="124" cy="88" rx="8" ry="12" transform="rotate(8 124 88)"/>
+  </g>
+  <path d="M78 270h84" fill="none" stroke="#24332c" stroke-width="6" stroke-linecap="round"/>
+</svg>

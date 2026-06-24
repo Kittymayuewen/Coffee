@@ -1,0 +1,2 @@
+id,name,district,address,lng,lat,coord_system,type,rating,reviews,avg_price,tags,description,image,bean_flavor,social,space,service,location_accuracy
+shop-001,示例咖啡店,徐汇,上海市徐汇区示例路1号,121.446,31.205,GCJ02,indep,4.8,1200,48,"手冲,社区咖啡",请替换为真实门店简介,shop-001.png,坚果巧克力,低社交社区店,原木温馨,服务亲切,exact

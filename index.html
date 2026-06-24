@@ -1,0 +1,2419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#ffffff">
+  <title>上海咖啡花园 · 插画地图</title>
+  <style>
+    :root {
+      --ink: #315341;
+      --muted: #806f5b;
+      --line: #ead9bc;
+      --paper: #fbf1dd;
+      --cream: #fff7e8;
+      --pink: #f0789b;
+      --green: #42a047;
+      --deep-green: #0f6a3e;
+      --blue: #9bc8ef;
+      --yellow: #ffda24;
+      --orange: #ff5128;
+      --lilac: #cfb6d8;
+      --shadow: 0 18px 40px rgba(126, 86, 46, .16);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: var(--paper); color: var(--ink); }
+    body { overflow: hidden; font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button { font: inherit; color: inherit; }
+
+    #app { position: relative; width: 100%; height: 100%; background: var(--paper); }
+    #map { display: none; }
+
+    #fallback-map { position: absolute; z-index: 1; inset: 0; overflow: hidden; background: var(--paper); opacity: 1; transition: opacity .4s ease; }
+    #fallback-map::before {
+      content: ""; position: absolute; z-index: 0; inset: -10%;
+      background:
+        radial-gradient(circle at 9% 14%, var(--blue) 0 8%, transparent 8.2%),
+        radial-gradient(circle at 93% 7%, var(--pink) 0 11%, transparent 11.2%),
+        radial-gradient(circle at 12% 89%, var(--lilac) 0 10%, transparent 10.2%),
+        radial-gradient(circle at 84% 90%, var(--yellow) 0 12%, transparent 12.2%);
+      opacity: .88;
+    }
+    #fallback-map::after {
+      content: ""; position: absolute; z-index: 0; inset: 0;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 118px, rgba(66,160,71,.52) 118px 130px, transparent 130px 188px),
+        linear-gradient(135deg, transparent 0 42%, rgba(255,81,40,.10) 42% 48%, transparent 48%);
+      opacity: .5;
+      pointer-events: none;
+    }
+    #fallback-map.hidden { opacity: 1; pointer-events: auto; }
+    .fallback-stage { position: absolute; z-index: 1; inset: 0; transform: scale(1); transition: transform .8s cubic-bezier(.2,.8,.2,1); transform-style: flat; isolation: isolate; }
+    .fallback-stage::before {
+      content: ""; position: absolute; z-index: 0; width: 38vw; height: 38vw; min-width: 320px; min-height: 320px;
+      right: -10vw; top: -14vw; border-radius: 50%; background: var(--orange); opacity: .84;
+    }
+    .fallback-stage::after {
+      content: ""; position: absolute; z-index: 0; width: 26vw; height: 14vw; left: 4vw; bottom: 4vh;
+      border-radius: 50% 50% 16% 16%; background: var(--yellow); opacity: .78; transform: rotate(-12deg);
+    }
+    .fallback-city-layer, .fallback-silhouette { position: absolute; inset: 5% 9% 2% 8%; width: 84%; height: 92%; overflow: visible; transform: rotateX(8deg) rotateZ(-1deg); transform-origin: 50% 58%; }
+    .fallback-city-layer { z-index: -1; filter: drop-shadow(20px 24px 0 rgba(214, 112, 80, .16)); pointer-events: none; }
+    .fallback-silhouette { z-index: 1; pointer-events: none; }
+    .fallback-city { fill: #f5dfb7; stroke: none; }
+    .fallback-river { fill: none; stroke: var(--blue); stroke-width: 15; stroke-linecap: round; opacity: .92; vector-effect: non-scaling-stroke; }
+    .fallback-grid-line { fill: none; stroke: rgba(66, 160, 71, .28); stroke-width: 8; stroke-linecap: round; opacity: .85; vector-effect: non-scaling-stroke; }
+    #fallback-grass-layer, #fallback-wildlife-layer, #fallback-region-layer, #fallback-marker-layer, #fallback-district-layer { position: absolute; inset: 0; }
+    #fallback-grass-layer, #fallback-wildlife-layer { pointer-events: none; overflow: hidden; }
+    #fallback-wildlife-layer { z-index: 10; }
+    #fallback-grass-layer { z-index: 40; }
+    .grass, .wildlife {
+      position: absolute; left: var(--x); top: var(--y);
+      transform: translate(-50%, -100%) rotate(var(--r, 0deg)); opacity: var(--o, .72);
+      filter: drop-shadow(0 8px 10px rgba(79, 112, 73, .10));
+    }
+    .grass { width: var(--w, 70px); height: var(--h, 78px); }
+    .grass svg { width: 100%; height: 100%; overflow: visible; }
+    .grass .blade { fill: var(--grass-fill, #8fc765); stroke: none; }
+    .grass .line { stroke: #365944; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; fill: none; opacity: .66; }
+    .grass.fan { --w: 78px; --h: 92px; --o: .66; }
+    .grass.tall { --w: 58px; --h: 112px; --o: .64; }
+    .grass.low { --w: 86px; --h: 52px; --o: .58; }
+    .grass.bush { --w: 92px; --h: 72px; --o: .6; }
+    .grass.sprout { --w: 72px; --h: 58px; --o: .56; }
+    .grass.soft { --grass-fill: #a5cf75; }
+    .grass.deep { --grass-fill: #73ad52; }
+    .wildlife { width: var(--w, 42px); height: var(--h, 34px); animation: drift var(--dur, 7s) ease-in-out infinite alternate; }
+    .wildlife svg { width: 100%; height: 100%; overflow: visible; }
+    .butterfly .wing-a { fill: var(--pink); }
+    .butterfly .wing-b { fill: var(--yellow); }
+    .butterfly .body { stroke: var(--deep-green); stroke-width: 3; stroke-linecap: round; }
+    .bird .body { fill: var(--blue); }
+    .bird .wing { fill: var(--deep-green); opacity: .86; }
+    .bird .beak { fill: var(--orange); }
+    @keyframes drift {
+      0% { transform: translate(-50%, -100%) translate(0, 0) rotate(var(--r, 0deg)); }
+      45% { transform: translate(-50%, -100%) translate(var(--mx, 14px), var(--my, -10px)) rotate(calc(var(--r, 0deg) + 6deg)); }
+      100% { transform: translate(-50%, -100%) translate(var(--tx, 26px), var(--ty, 8px)) rotate(calc(var(--r, 0deg) - 4deg)); }
+    }
+    #fallback-region-layer { z-index: 30; pointer-events: none; transform: translateZ(0); }
+    #fallback-marker-layer { z-index: 90; transform: translateZ(0); }
+    #fallback-district-layer { z-index: 100; pointer-events: none; transform: translateZ(0); }
+    .fallback-region {
+      position: absolute; transform: translate(-50%, -50%) rotate(var(--region-rotate, 0deg));
+      width: var(--region-width, 170px); height: var(--region-height, 120px);
+      border-radius: 32% 58% 38% 54%; background: var(--region-color, var(--yellow));
+      opacity: .26; filter: saturate(.95); transition: opacity .25s ease, transform .45s ease;
+    }
+    .fallback-region.hidden { opacity: 0; }
+    .fallback-district { position: absolute; transform: translate(-50%, -50%); z-index: 12; border: 0; border-radius: 999px; padding: 7px 12px; background: var(--label-color); font-size: 10px; font-weight: 900; cursor: pointer; box-shadow: 0 9px 18px rgba(128,111,91,.18); transition: opacity .25s ease, transform .25s ease; color: var(--deep-green); pointer-events: auto; }
+    .fallback-district:hover { transform: translate(-50%, -55%) scale(1.08); }
+    .fallback-district.hidden { opacity: 0; pointer-events: none; }
+
+    .topbar {
+      position: absolute; z-index: 30; top: 20px; left: 22px; right: 22px;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .brand, .nav-box, .quality-button, .back-button, .district-list, .shop-card, .notice {
+      pointer-events: auto;
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px;
+      background: rgba(255, 247, 232, .94); border: 0; border-radius: 8px 26px 8px 26px;
+      box-shadow: 0 12px 28px rgba(128, 111, 91, .18);
+    }
+
+    .brand-mark {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      position: relative; overflow: hidden; border-radius: 50%; background: var(--green);
+    }
+    .brand-mark::before { content: ""; width: 12px; height: 25px; border-radius: 50%; background: var(--cream); transform: rotate(32deg); }
+    .brand-mark::after { content: ""; position: absolute; width: 5px; height: 25px; border-radius: 50%; background: var(--pink); transform: rotate(32deg); }
+
+    .brand h1 { margin: 0; font-size: 17px; letter-spacing: .08em; line-height: 1.2; }
+    .brand p { margin: 4px 0 0; font-size: 10px; color: var(--muted); letter-spacing: .12em; }
+
+    .top-actions { display: flex; gap: 10px; align-items: center; }
+    .quality-button, .back-button {
+      border: 0; border-radius: 7px 18px 7px 18px; background: var(--yellow);
+      min-height: 42px; padding: 0 15px; cursor: pointer; font-weight: 700; font-size: 12px;
+      box-shadow: 0 9px 18px rgba(128, 111, 91, .18); transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .quality-button:hover, .back-button:hover { transform: translateY(-2px); box-shadow: 0 13px 22px rgba(128, 111, 91, .22); }
+    .quality-button.has-issues { background: var(--pink); }
+    .back-button[hidden] { display: none; }
+
+    .nav-box {
+      position: absolute; z-index: 25; top: 96px; left: 24px;
+      display: flex; align-items: center; gap: 7px; padding: 9px 12px;
+      border: 0; border-radius: 7px 18px 7px 18px; background: rgba(255, 247, 232, .94);
+      box-shadow: 0 9px 22px rgba(128, 111, 91, .14); font-size: 12px;
+    }
+    .nav-box button { border: 0; padding: 0; background: transparent; cursor: pointer; font-weight: 800; }
+    .nav-box .sep { color: #b1bbb5; }
+
+    .district-list {
+      display: none; position: absolute; z-index: 24; left: 24px; bottom: 24px; width: min(310px, calc(100vw - 48px));
+      padding: 16px; border: 0; border-radius: 8px 26px 8px 26px; background: rgba(255, 247, 232, .94);
+      box-shadow: 0 14px 30px rgba(128, 111, 91, .18); transition: transform .25s ease, opacity .25s ease;
+    }
+    .district-list.hidden { opacity: 0; transform: translateY(16px); pointer-events: none; }
+    .district-list h2 { margin: 0; font-size: 14px; }
+    .district-list p { margin: 5px 0 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .district-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .district-card {
+      min-height: 62px; padding: 10px; text-align: left; cursor: pointer;
+      border: 0; border-radius: 7px 18px 7px 18px; background: var(--district-color, var(--cream));
+      transition: transform .15s ease;
+    }
+    .district-card:hover { transform: translateY(-2px) rotate(-.5deg); }
+    .district-card strong { display: block; font-size: 13px; }
+    .district-card span { display: block; margin-top: 5px; font-size: 10px; color: #58675f; }
+
+    .notice {
+      position: absolute; z-index: 50; left: auto; right: 24px; top: auto; bottom: 24px; transform: none;
+      width: min(330px, calc(100vw - 48px)); padding: 12px 14px;
+      border: 0; border-radius: 7px 18px 7px 18px; background: rgba(255, 247, 232, .96);
+      box-shadow: 0 12px 26px rgba(128, 111, 91, .18); text-align: left;
+    }
+    .notice[hidden] { display: none; }
+    .notice .icon { display: none; }
+    .notice h2 { margin: 0 0 4px; font-size: 12px; }
+    .notice p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .notice code { color: var(--ink); background: var(--cream); padding: 2px 5px; border-radius: 5px; }
+
+    .quality-panel {
+      position: absolute; z-index: 100; top: 72px; right: 22px; width: min(380px, calc(100vw - 44px));
+      max-height: min(520px, calc(100vh - 96px)); overflow: auto; padding: 17px;
+      border: 0; border-radius: 22px; background: var(--cream); box-shadow: 0 18px 38px rgba(128, 111, 91, .2);
+    }
+    .quality-panel[hidden] { display: none; }
+    .quality-panel header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .quality-panel h2 { margin: 0; font-size: 14px; }
+    .quality-panel .close { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--yellow); cursor: pointer; }
+    .quality-summary { margin: 10px 0; padding: 10px; background: var(--cream); border-radius: 10px; font-size: 11px; line-height: 1.6; }
+    .issue-list { margin: 0; padding: 0; list-style: none; }
+    .issue-list li { padding: 9px 0; border-top: 1px dashed var(--line); font-size: 11px; line-height: 1.45; }
+    .issue-list strong { color: #a24758; }
+
+    .shop-card {
+      position: absolute; z-index: 90; right: 24px; top: 92px; bottom: 24px;
+      width: min(360px, calc(100vw - 48px)); overflow: auto;
+      border: 0; border-radius: 10px 34px 10px 34px; background: var(--cream);
+      box-shadow: 0 22px 45px rgba(128, 111, 91, .24); transform: translateX(calc(100% + 50px));
+      transition: transform .35s cubic-bezier(.2,.8,.2,1);
+    }
+    .shop-card.show { transform: translateX(0); }
+    .shop-visual { min-height: 220px; display: grid; place-items: center; background: radial-gradient(circle, var(--yellow) 0 32%, var(--pink) 33% 44%, var(--blue) 45%); }
+    .shop-visual img { width: 210px; height: 246px; object-fit: contain; filter: drop-shadow(0 12px 8px rgba(128,111,91,.2)); }
+    .shop-body { padding: 20px; }
+    .shop-kicker { font-size: 10px; font-weight: 800; letter-spacing: .15em; color: var(--muted); }
+    .shop-card h2 { margin: 7px 0 5px; font-size: 22px; line-height: 1.25; }
+    .shop-address { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 16px 0; }
+    .metric { padding: 10px 5px; text-align: center; border: 0; border-radius: 16px; background: var(--green); color: #fff7e8; }
+    .metric:nth-child(2) { background: var(--pink); }
+    .metric:nth-child(3) { background: var(--blue); }
+    .metric strong { display: block; font-size: 14px; }
+    .metric span { display: block; margin-top: 3px; font-size: 9px; color: #59675f; }
+    .shop-description { margin: 0 0 14px; font-size: 12px; line-height: 1.75; }
+    .detail-grid { display: grid; gap: 8px; margin: 0 0 15px; }
+    .detail-item { padding: 11px 12px; border: 0; border-radius: 17px; background: #fff; }
+    .detail-item:nth-child(1) { background: var(--cream); }
+    .detail-item:nth-child(2) { background: #fbe8ed; }
+    .detail-item:nth-child(3) { background: #edf2fd; }
+    .detail-item:nth-child(4) { background: #edf8f1; }
+    .detail-item strong { display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: .08em; }
+    .detail-item p { margin: 0; font-size: 11px; line-height: 1.55; }
+    .location-note { margin: 8px 0 0; padding: 7px 9px; border-radius: 9px; background: #fff2c8; color: #69591f; font-size: 10px; line-height: 1.45; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { padding: 5px 9px; border: 0; border-radius: 999px; background: var(--yellow); font-size: 10px; }
+    .card-close { position: absolute; right: 12px; top: 12px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--orange); color: #fff7e8; cursor: pointer; font-size: 17px; }
+
+    .district-label {
+      min-width: 94px; padding: 9px 12px;
+      border: 0; border-radius: 18px; background: var(--label-color, #fff);
+      box-shadow: 0 9px 18px rgba(128,111,91,.18); text-align: center; cursor: pointer; white-space: nowrap;
+    }
+    .district-label strong { display: block; font-size: 13px; }
+    .district-label span { display: block; margin-top: 3px; color: #59675f; font-size: 9px; }
+
+    .flower-marker {
+      position: relative; width: 184px; height: 238px; padding: 0; border: 0; background: transparent;
+      cursor: pointer; transition: transform .45s cubic-bezier(.2,.8,.2,1), filter .3s ease, opacity .3s ease;
+    }
+    .flower-marker img {
+      width: 178px; height: 222px; object-fit: contain; filter: drop-shadow(0 12px 7px rgba(128,111,91,.2));
+      transform-origin: 50% 96%; animation: flower-sway 3.8s ease-in-out infinite; animation-delay: var(--sway-delay, 0s);
+    }
+    .flower-marker span {
+      position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); max-width: 132px;
+      padding: 5px 9px; border: 0; border-radius: 999px; background: var(--cream);
+      font-size: 9px; font-weight: 800; white-space: nowrap; opacity: 0; transition: opacity .15s ease;
+    }
+    .flower-marker.overview { transform: scale(.62); opacity: .96; }
+    .flower-marker.district-focus { transform: translateY(-8px) scale(1.18); }
+    .flower-marker.muted { transform: scale(.78); opacity: .22; filter: grayscale(.55); }
+    .flower-marker.hidden { opacity: 0; pointer-events: none; }
+    .flower-marker:hover { transform: translateY(-10px) scale(1.28); z-index: 3; }
+    .flower-marker:hover span, .flower-marker.selected span { opacity: 1; }
+    .flower-marker.selected { transform: translateY(-10px) scale(1.28); filter: saturate(1.16); z-index: 5; }
+
+    .fallback-flower { position: absolute; transform: translate(-50%, -88%) scale(.62); z-index: 8; }
+    .fallback-flower.overview { transform: translate(-50%, -88%) scale(.62); }
+    .fallback-flower.district-focus { transform: translate(-50%, -86%) scale(1.18); z-index: 16; }
+    .fallback-flower.muted { transform: translate(-50%, -88%) scale(.72); }
+    .fallback-flower.selected { transform: translate(-50%, -74%) scale(1.28); z-index: 30; }
+    .fallback-flower:hover { transform: translate(-50%, -86%) scale(1.28); }
+
+    @keyframes flower-sway {
+      0%, 100% { transform: rotate(-2.2deg) translateX(-1px); }
+      50% { transform: rotate(2.8deg) translateX(2px); }
+    }
+
+    .demo-ribbon {
+      position: absolute; z-index: 20; left: 50%; bottom: 16px; transform: translateX(-50%);
+      padding: 7px 11px; border: 0; border-radius: 999px;
+      background: var(--yellow); font-size: 9px; font-weight: 800; letter-spacing: .08em; pointer-events: none;
+    }
+
+    @media (max-width: 720px) {
+      .topbar { top: 12px; left: 12px; right: 12px; }
+      .brand { max-width: calc(100vw - 126px); padding: 8px; border-radius: 14px; }
+      .brand-mark { width: 36px; height: 36px; font-size: 20px; }
+      .brand h1 { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .brand p { display: none; }
+      .quality-button, .back-button { min-height: 38px; padding: 0 11px; font-size: 0; }
+      .quality-button::before { content: "数据"; font-size: 11px; }
+      .back-button::before { content: "返回"; font-size: 11px; }
+      .nav-box { top: 70px; left: 12px; }
+      .district-list { left: 12px; bottom: 12px; width: calc(100vw - 24px); max-height: 39vh; overflow: auto; }
+      .shop-card { left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-height: 62vh; transform: translateY(calc(100% + 30px)); }
+      .shop-card.show { transform: translateY(0); }
+      .shop-visual { min-height: 130px; }
+      .shop-visual img { width: 134px; height: 156px; }
+      .shop-body { padding: 16px; }
+      .shop-card h2 { font-size: 18px; }
+      .demo-ribbon { bottom: auto; top: 116px; }
+      .flower-marker { width: 126px; height: 162px; }
+      .flower-marker img { width: 122px; height: 150px; }
+    }
+  </style>
+</head>
+<body>
+  <audio id="background-audio" src="assets/audio/background-nature.mp3" autoplay loop preload="auto" playsinline></audio>
+  <main id="app">
+    <div id="map" aria-label="上海咖啡店三维地图"></div>
+    <div id="fallback-map" aria-label="上海咖啡店插画地图">
+      <div class="fallback-stage" id="fallback-stage">
+        <svg class="fallback-city-layer" viewBox="0 0 760 640" aria-hidden="true">
+          <path class="fallback-city" d="M180 80 295 45 430 68 550 120 620 218 600 330 655 420 570 540 455 590 330 570 215 610 120 535 72 430 112 325 76 225 130 145Z"/>
+        </svg>
+        <svg class="fallback-silhouette" viewBox="0 0 760 640" aria-hidden="true">
+          <path class="fallback-grid-line" d="M125 180 580 460M105 380 575 170M235 68 205 580M455 76 485 570"/>
+          <path class="fallback-river" d="M600 18C558 92 610 152 545 230S470 350 405 438 330 548 255 638"/>
+          <rect x="478" y="352" width="105" height="105" rx="16" fill="#397a72" opacity=".14" transform="rotate(18 530 404)"/>
+          <circle cx="238" cy="170" r="54" fill="#d66a4a" opacity=".16"/>
+        </svg>
+        <div id="fallback-grass-layer" aria-hidden="true">
+          <span class="grass fan deep" style="--x:10%;--y:31%;--r:-8deg"><svg viewBox="0 0 90 105"><path class="blade" d="M44 101C30 70 20 38 28 10c18 22 20 58 16 91Z"/><path class="blade" d="M44 101C47 63 53 25 70 7c8 34-3 68-26 94Z"/><path class="blade" d="M44 101C58 73 72 50 84 38c0 28-16 51-40 63Z"/><path class="blade" d="M44 101C29 82 16 68 6 60c2 20 18 34 38 41Z"/><path class="line" d="M44 97C42 64 40 34 29 13M44 97C52 63 59 31 69 10M44 97C58 77 71 55 83 41"/></svg></span>
+          <span class="grass low soft" style="--x:19%;--y:49%;--r:4deg"><svg viewBox="0 0 115 62"><path class="blade" d="M8 59C17 32 32 27 43 59Z"/><path class="blade" d="M34 59C44 20 61 16 72 59Z"/><path class="blade" d="M64 59C76 28 94 27 108 59Z"/><path class="line" d="M42 56C43 43 43 33 40 23M72 56C71 39 68 28 61 18M91 56C91 44 94 36 101 30"/></svg></span>
+          <span class="grass tall" style="--x:29%;--y:25%;--r:3deg"><svg viewBox="0 0 70 125"><path class="blade" d="M34 122C21 82 13 44 19 8c22 31 24 76 15 114Z"/><path class="blade" d="M34 122C36 80 43 38 58 16c11 36 3 74-24 106Z"/><path class="blade" d="M34 122C22 98 13 78 6 62c18 5 27 24 28 60Z"/><path class="line" d="M34 116C34 78 30 39 20 11M34 116C42 81 49 44 58 19"/></svg></span>
+          <span class="grass bush deep" style="--x:43%;--y:36%;--r:-5deg"><svg viewBox="0 0 105 82"><path class="blade" d="M7 78C13 44 27 25 43 67c9-36 25-54 40 4 8-21 17-32 23 7Z"/><path class="blade" d="M15 78C28 57 40 48 54 78Z"/><path class="line" d="M22 74C30 50 38 38 46 27M53 75C58 52 64 35 73 20M82 76C88 60 94 48 101 40"/></svg></span>
+          <span class="grass sprout soft" style="--x:55%;--y:28%;--r:7deg"><svg viewBox="0 0 82 66"><path class="blade" d="M41 63C27 47 17 36 9 25c22 0 33 15 32 38Z"/><path class="blade" d="M41 63C43 37 50 18 64 6c8 24-2 45-23 57Z"/><path class="blade" d="M41 63C55 49 68 40 78 36c-1 18-16 28-37 27Z"/><path class="line" d="M41 60C42 43 49 23 63 8M41 60C54 50 66 42 76 38"/></svg></span>
+          <span class="grass fan" style="--x:68%;--y:33%;--r:10deg"><svg viewBox="0 0 90 105"><path class="blade" d="M44 101C30 70 20 38 28 10c18 22 20 58 16 91Z"/><path class="blade" d="M44 101C47 63 53 25 70 7c8 34-3 68-26 94Z"/><path class="blade" d="M44 101C58 73 72 50 84 38c0 28-16 51-40 63Z"/><path class="line" d="M44 97C42 64 40 34 29 13M44 97C52 63 59 31 69 10M44 97C58 77 71 55 83 41"/></svg></span>
+          <span class="grass low" style="--x:84%;--y:28%;--r:-6deg"><svg viewBox="0 0 115 62"><path class="blade" d="M8 59C18 35 31 28 43 59Z"/><path class="blade" d="M35 59C45 19 62 15 73 59Z"/><path class="blade" d="M61 59C74 28 93 26 108 59Z"/><path class="line" d="M43 56C44 42 43 31 39 22M73 56C72 39 68 27 62 18"/></svg></span>
+          <span class="grass tall deep" style="--x:91%;--y:43%;--r:8deg"><svg viewBox="0 0 70 125"><path class="blade" d="M34 122C21 82 13 44 19 8c22 31 24 76 15 114Z"/><path class="blade" d="M34 122C36 80 43 38 58 16c11 36 3 74-24 106Z"/><path class="blade" d="M34 122C22 98 13 78 6 62c18 5 27 24 28 60Z"/><path class="line" d="M34 116C34 78 30 39 20 11M34 116C42 81 49 44 58 19"/></svg></span>
+          <span class="grass sprout" style="--x:8%;--y:65%;--r:7deg"><svg viewBox="0 0 82 66"><path class="blade" d="M41 63C26 48 16 36 8 25c23 0 33 15 33 38Z"/><path class="blade" d="M41 63C43 37 50 18 64 6c8 24-2 45-23 57Z"/><path class="blade" d="M41 63C55 49 68 40 78 36c-1 18-16 28-37 27Z"/><path class="line" d="M41 60C42 43 49 23 63 8M41 60C54 50 66 42 76 38"/></svg></span>
+          <span class="grass bush soft" style="--x:20%;--y:79%;--r:-4deg"><svg viewBox="0 0 105 82"><path class="blade" d="M7 78C13 44 27 25 43 67c9-36 25-54 40 4 8-21 17-32 23 7Z"/><path class="blade" d="M14 78C27 56 40 47 55 78Z"/><path class="line" d="M21 74C30 50 38 38 46 27M53 75C58 52 64 35 73 20M82 76C88 60 94 48 101 40"/></svg></span>
+          <span class="grass fan soft" style="--x:33%;--y:87%;--r:9deg"><svg viewBox="0 0 90 105"><path class="blade" d="M44 101C30 70 20 38 28 10c18 22 20 58 16 91Z"/><path class="blade" d="M44 101C47 63 53 25 70 7c8 34-3 68-26 94Z"/><path class="blade" d="M44 101C58 73 72 50 84 38c0 28-16 51-40 63Z"/><path class="line" d="M44 97C42 64 40 34 29 13M44 97C52 63 59 31 69 10M44 97C58 77 71 55 83 41"/></svg></span>
+          <span class="grass low deep" style="--x:45%;--y:75%;--r:-8deg"><svg viewBox="0 0 115 62"><path class="blade" d="M8 59C18 35 31 28 43 59Z"/><path class="blade" d="M35 59C45 19 62 15 73 59Z"/><path class="blade" d="M61 59C74 28 93 26 108 59Z"/><path class="line" d="M43 56C44 42 43 31 39 22M73 56C72 39 68 27 62 18M91 56C91 44 95 36 102 30"/></svg></span>
+          <span class="grass tall soft" style="--x:60%;--y:82%;--r:-2deg"><svg viewBox="0 0 70 125"><path class="blade" d="M34 122C21 82 13 44 19 8c22 31 24 76 15 114Z"/><path class="blade" d="M34 122C36 80 43 38 58 16c11 36 3 74-24 106Z"/><path class="blade" d="M34 122C22 98 13 78 6 62c18 5 27 24 28 60Z"/><path class="line" d="M34 116C34 78 30 39 20 11M34 116C42 81 49 44 58 19"/></svg></span>
+          <span class="grass bush" style="--x:73%;--y:72%;--r:5deg"><svg viewBox="0 0 105 82"><path class="blade" d="M7 78C13 44 27 25 43 67c9-36 25-54 40 4 8-21 17-32 23 7Z"/><path class="blade" d="M14 78C27 56 40 47 55 78Z"/><path class="line" d="M21 74C30 50 38 38 46 27M53 75C58 52 64 35 73 20M82 76C88 60 94 48 101 40"/></svg></span>
+          <span class="grass sprout deep" style="--x:88%;--y:76%;--r:-9deg"><svg viewBox="0 0 82 66"><path class="blade" d="M41 63C27 47 17 36 9 25c22 0 33 15 32 38Z"/><path class="blade" d="M41 63C43 37 50 18 64 6c8 24-2 45-23 57Z"/><path class="blade" d="M41 63C55 49 68 40 78 36c-1 18-16 28-37 27Z"/><path class="line" d="M41 60C42 43 49 23 63 8M41 60C54 50 66 42 76 38"/></svg></span>
+          <span class="grass low soft" style="--x:13%;--y:88%;--r:3deg"><svg viewBox="0 0 115 62"><path class="blade" d="M8 59C18 35 31 28 43 59Z"/><path class="blade" d="M35 59C45 19 62 15 73 59Z"/><path class="blade" d="M61 59C74 28 93 26 108 59Z"/><path class="line" d="M43 56C44 42 43 31 39 22M73 56C72 39 68 27 62 18"/></svg></span>
+          <span class="grass fan" style="--x:51%;--y:92%;--r:-7deg"><svg viewBox="0 0 90 105"><path class="blade" d="M44 101C30 70 20 38 28 10c18 22 20 58 16 91Z"/><path class="blade" d="M44 101C47 63 53 25 70 7c8 34-3 68-26 94Z"/><path class="blade" d="M44 101C58 73 72 50 84 38c0 28-16 51-40 63Z"/><path class="line" d="M44 97C42 64 40 34 29 13M44 97C52 63 59 31 69 10M44 97C58 77 71 55 83 41"/></svg></span>
+          <span class="grass low deep" style="--x:80%;--y:91%;--r:8deg"><svg viewBox="0 0 115 62"><path class="blade" d="M8 59C18 35 31 28 43 59Z"/><path class="blade" d="M35 59C45 19 62 15 73 59Z"/><path class="blade" d="M61 59C74 28 93 26 108 59Z"/><path class="line" d="M43 56C44 42 43 31 39 22M73 56C72 39 68 27 62 18M91 56C91 44 95 36 102 30"/></svg></span>
+        </div>
+        <div id="fallback-wildlife-layer" aria-hidden="true">
+          <span class="wildlife butterfly" style="--x:13%;--y:21%;--r:-12deg;--dur:6.4s;--mx:18px;--my:-12px;--tx:32px;--ty:8px"><svg viewBox="0 0 70 54"><path class="wing-a" d="M34 28C14 8 4 12 8 31c12 4 20 4 26-3Z"/><path class="wing-b" d="M37 28C57 8 67 13 62 32c-12 3-20 3-25-4Z"/><path class="wing-a" d="M33 30C15 35 16 50 31 47c7-7 7-12 2-17Z"/><path class="wing-b" d="M38 30C56 35 54 50 40 47c-7-7-7-12-2-17Z"/><path class="body" d="M35 20v22"/></svg></span>
+          <span class="wildlife bird" style="--x:43%;--y:18%;--r:8deg;--w:58px;--h:38px;--dur:8s;--mx:-16px;--my:10px;--tx:24px;--ty:-8px"><svg viewBox="0 0 90 54"><path class="body" d="M18 34C31 12 62 13 76 34c-18 12-41 12-58 0Z"/><path class="wing" d="M39 33C48 18 61 16 70 29c-10 10-20 11-31 4Z"/><path class="beak" d="M76 31l12 5-12 5Z"/><circle cx="66" cy="28" r="3" fill="#0f6a3e"/></svg></span>
+          <span class="wildlife butterfly" style="--x:70%;--y:18%;--r:14deg;--dur:5.8s;--mx:-20px;--my:12px;--tx:-34px;--ty:-4px"><svg viewBox="0 0 70 54"><path class="wing-a" d="M34 28C13 8 5 14 9 31c11 4 20 4 25-3Z"/><path class="wing-b" d="M37 28C57 8 66 13 61 31c-11 4-19 4-24-3Z"/><path class="wing-b" d="M33 31C17 35 18 48 31 46c6-6 7-11 2-15Z"/><path class="wing-a" d="M38 31C54 35 53 48 40 46c-6-6-7-11-2-15Z"/><path class="body" d="M35 20v22"/></svg></span>
+          <span class="wildlife bird" style="--x:88%;--y:38%;--r:-10deg;--w:52px;--h:34px;--dur:7.2s;--mx:-18px;--my:-10px;--tx:-30px;--ty:12px"><svg viewBox="0 0 90 54"><path class="body" d="M15 35C30 15 58 15 74 34c-16 13-43 13-59 1Z"/><path class="wing" d="M37 33C46 18 58 18 68 30c-9 9-20 10-31 3Z"/><path class="beak" d="M74 31l12 5-12 5Z"/></svg></span>
+          <span class="wildlife butterfly" style="--x:31%;--y:68%;--r:6deg;--dur:6.9s;--mx:14px;--my:16px;--tx:28px;--ty:-12px"><svg viewBox="0 0 70 54"><path class="wing-a" d="M34 28C14 8 5 13 8 31c12 4 20 4 26-3Z"/><path class="wing-b" d="M37 28C57 8 66 13 62 32c-12 3-20 3-25-4Z"/><path class="wing-a" d="M33 30C15 35 16 49 31 47c7-7 7-12 2-17Z"/><path class="wing-b" d="M38 30C56 35 54 49 40 47c-7-7-7-12-2-17Z"/><path class="body" d="M35 20v22"/></svg></span>
+          <span class="wildlife bird" style="--x:17%;--y:57%;--r:-5deg;--w:50px;--h:32px;--dur:8.8s;--mx:24px;--my:-14px;--tx:38px;--ty:10px"><svg viewBox="0 0 90 54"><path class="body" d="M16 35C31 14 58 15 74 34c-16 13-42 13-58 1Z"/><path class="wing" d="M38 33C47 18 59 18 68 30c-9 9-20 10-30 3Z"/><path class="beak" d="M74 31l12 5-12 5Z"/></svg></span>
+          <span class="wildlife butterfly" style="--x:58%;--y:63%;--r:-16deg;--dur:7.6s;--mx:-18px;--my:-18px;--tx:22px;--ty:-8px"><svg viewBox="0 0 70 54"><path class="wing-a" d="M34 28C13 8 5 14 9 31c11 4 20 4 25-3Z"/><path class="wing-b" d="M37 28C57 8 66 13 61 31c-11 4-19 4-24-3Z"/><path class="wing-b" d="M33 31C17 35 18 48 31 46c6-6 7-11 2-15Z"/><path class="wing-a" d="M38 31C54 35 53 48 40 46c-6-6-7-11-2-15Z"/><path class="body" d="M35 20v22"/></svg></span>
+          <span class="wildlife bird" style="--x:77%;--y:69%;--r:11deg;--w:54px;--h:36px;--dur:8.4s;--mx:-22px;--my:12px;--tx:-36px;--ty:-10px"><svg viewBox="0 0 90 54"><path class="body" d="M18 34C31 12 62 13 76 34c-18 12-41 12-58 0Z"/><path class="wing" d="M39 33C48 18 61 16 70 29c-10 10-20 11-31 4Z"/><path class="beak" d="M76 31l12 5-12 5Z"/></svg></span>
+        </div>
+        <div id="fallback-region-layer"></div>
+        <div id="fallback-district-layer"></div>
+        <div id="fallback-marker-layer"></div>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>上海咖啡花园</h1>
+          <p>SHANGHAI COFFEE GARDEN</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="quality-button" id="quality-button" type="button">数据质量</button>
+        <button class="back-button" id="back-button" type="button" hidden>← 返回</button>
+      </div>
+    </div>
+
+    <nav class="nav-box" id="breadcrumb" aria-label="地图层级导航"></nav>
+
+    <section class="district-list" id="district-list">
+      <h2>从一个区开始散步</h2>
+      <p>地图只呈现当前数据中包含咖啡店的行政区。</p>
+      <div class="district-grid" id="district-grid"></div>
+    </section>
+
+    <aside class="shop-card" id="shop-card" aria-live="polite">
+      <button class="card-close" id="card-close" type="button" aria-label="关闭店铺信息">×</button>
+      <div class="shop-visual"><img id="card-image" alt=""></div>
+      <div class="shop-body">
+        <div class="shop-kicker" id="card-kicker"></div>
+        <h2 id="card-name"></h2>
+        <p class="shop-address" id="card-address"></p>
+        <div class="metrics">
+          <div class="metric"><strong id="card-rating"></strong><span>评分</span></div>
+          <div class="metric"><strong id="card-reviews"></strong><span>评论</span></div>
+          <div class="metric"><strong id="card-price"></strong><span>人均</span></div>
+        </div>
+        <p class="shop-description" id="card-description"></p>
+        <div class="detail-grid">
+          <div class="detail-item"><strong>咖啡豆风味 · 花瓣</strong><p id="card-bean"></p></div>
+          <div class="detail-item"><strong>社交属性 · 花蕊</strong><p id="card-social"></p></div>
+          <div class="detail-item"><strong>空间氛围 · 茎干</strong><p id="card-space"></p></div>
+          <div class="detail-item"><strong>服务温度 · 叶片</strong><p id="card-service"></p></div>
+        </div>
+        <div class="tags" id="card-tags"></div>
+        <p class="location-note" id="card-location-note"></p>
+      </div>
+    </aside>
+
+    <section class="quality-panel" id="quality-panel" hidden>
+      <header><h2>数据质量检查</h2><button class="close" id="quality-close" type="button" aria-label="关闭">×</button></header>
+      <div class="quality-summary" id="quality-summary"></div>
+      <ul class="issue-list" id="issue-list"></ul>
+    </section>
+
+    <section class="notice" id="map-notice" hidden>
+      <div class="icon">⌖</div>
+      <h2 id="notice-title">需要配置高德地图</h2>
+      <p id="notice-text"></p>
+    </section>
+
+    <div class="demo-ribbon">行政区近似定位 · 花朵与门店一一对应</div>
+  </main>
+
+  <script>
+    const APP_CONFIG = {
+      amapKey: "772ac12ab52b9f8d73fef37367e442b1",
+      securityJsCode: "757c47bd862fc38b67b72cf6bdd08870",
+      initialCenter: [121.4737, 31.2304]
+    };
+    window._AMapSecurityConfig = { securityJsCode: APP_CONFIG.securityJsCode };
+  </script>
+  <!-- 高德底图不再作为可见层加载；经纬度仅用于本地插画地图的隐形布局。 -->
+  <script>
+    /* DATA_START */
+const RAW_SHOPS = [
+  {
+    "id": "coffee-001",
+    "name": "月球咖啡 retro",
+    "district": "静安",
+    "address": "茂名北路75弄2号底层前客堂（近威海路）",
+    "lng": 121.448872,
+    "lat": 31.232667,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 3319,
+    "avg_price": 40,
+    "tags": "低社交,复古温馨",
+    "description": "坚果巧克力、中烘 / 深烘、埃塞 SOE、均衡醇和；复古温馨、老城区社区风、小而紧凑",
+    "image": "coffee-001.png",
+    "bean_flavor": "坚果巧克力、中烘 / 深烘、埃塞 SOE、均衡醇和",
+    "social": "低社交（安静阅读、非网红店）、打卡小众社区店",
+    "space": "复古温馨、老城区社区风、小而紧凑",
+    "service": "店主亲切、性价比高、主动推荐豆子",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-002",
+    "name": "fumi coffee (陕康里店)",
+    "district": "静安",
+    "address": "陕西北路808号",
+    "lng": 121.474236,
+    "lat": 31.217918,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 1105,
+    "avg_price": 26,
+    "tags": "高社交,黑白极简 ins 风",
+    "description": "坚果巧克力风味、洪都拉斯日晒 SOE、醇厚绵长；黑白极简 ins 风、欧式街头感、镜面金属元素",
+    "image": "coffee-002.png",
+    "bean_flavor": "坚果巧克力风味、洪都拉斯日晒 SOE、醇厚绵长",
+    "social": "高社交（宠物友好、网红打卡、好友小聚）",
+    "space": "黑白极简 ins 风、欧式街头感、镜面金属元素",
+    "service": "服务热情、咖啡师专业、宠物友好态度好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-003",
+    "name": "CoffeeGrouppies",
+    "district": "静安",
+    "address": "康定路723号",
+    "lng": 121.452951,
+    "lat": 31.237547,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.7,
+    "reviews": 1304,
+    "avg_price": 29,
+    "tags": "低社交,暖黄吊灯爵士乐氛围",
+    "description": "深烘黑巧、坚果厚重感、奶咖友好、油脂绵密；暖黄吊灯爵士乐氛围、温馨社区感",
+    "image": "coffee-003.png",
+    "bean_flavor": "深烘黑巧、坚果厚重感、奶咖友好、油脂绵密",
+    "social": "低社交（老牌稳扎社区店、熟客为主）",
+    "space": "暖黄吊灯爵士乐氛围、温馨社区感",
+    "service": "店员温柔耐心、讲解风味、对毛孩子友好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-004",
+    "name": "Lanna Coffee (愚园东路店)",
+    "district": "静安",
+    "address": "愚园东路8号",
+    "lng": 121.465933,
+    "lat": 31.240921,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 1140,
+    "avg_price": 30,
+    "tags": "中社交,工业风水泥墙 + 木质桌",
+    "description": "云南本土豆、香醇悠长、铁比卡种、回甘明显；工业风水泥墙 + 木质桌、半开放街边位、上镜",
+    "image": "coffee-004.png",
+    "bean_flavor": "云南本土豆、香醇悠长、铁比卡种、回甘明显",
+    "social": "中社交（自拍打卡、小众网红点）",
+    "space": "工业风水泥墙 + 木质桌、半开放街边位、上镜",
+    "service": "咖啡师技艺娴熟、服务热情无拘束",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-005",
+    "name": "RUMORS COFFEE 鲁马滋",
+    "district": "徐汇",
+    "address": "湖南路街道湖南路9号甲(近上海图书馆)",
+    "lng": 121.43128,
+    "lat": 31.183131,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 2103,
+    "avg_price": 78,
+    "tags": "低社交,日式复古木质风",
+    "description": "深烘醇厚、单品手冲、也门摩卡 Matari、焦香饱满；日式复古木质风、天窗自然光、爵士音乐氛围",
+    "image": "coffee-005.png",
+    "bean_flavor": "深烘醇厚、单品手冲、也门摩卡 Matari、焦香饱满",
+    "social": "低社交（熟客为主、日式居心地）",
+    "space": "日式复古木质风、天窗自然光、爵士音乐氛围",
+    "service": "店主夫妻经营、烘豆新鲜、安静不打扰",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-006",
+    "name": "月球咖啡 / 绿屋 /",
+    "district": "徐汇",
+    "address": "天平路街道永嘉路527弄1号",
+    "lng": 121.452797,
+    "lat": 31.194943,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.7,
+    "reviews": 238,
+    "avg_price": 44,
+    "tags": "低社交,老洋房绿色小屋",
+    "description": "浅烘水果风味、云南桂圆果香、拼配均衡、顺滑；老洋房绿色小屋、静谧阅读空间、惬意松弛",
+    "image": "coffee-006.png",
+    "bean_flavor": "浅烘水果风味、云南桂圆果香、拼配均衡、顺滑",
+    "social": "低社交（阅读室氛围、安静独处）",
+    "space": "老洋房绿色小屋、静谧阅读空间、惬意松弛",
+    "service": "出品稳定、咖啡师专业、豆子可称重选",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-007",
+    "name": "老麦咖啡馆 (武康大楼店)",
+    "district": "徐汇",
+    "address": "老麦咖啡馆 (武康大楼店)",
+    "lng": 121.427374,
+    "lat": 31.1865,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.1,
+    "reviews": 5862,
+    "avg_price": 55,
+    "tags": "高社交,复古怀旧老洋房",
+    "description": "哥伦比亚粉波旁、复古手冲、巧克力尾韵；复古怀旧老洋房、黑胶古董、老上海腔调",
+    "image": "coffee-007.png",
+    "bean_flavor": "哥伦比亚粉波旁、复古手冲、巧克力尾韵",
+    "social": "高社交（网红打卡、武康路地标、排队打卡）",
+    "space": "复古怀旧老洋房、黑胶古董、老上海腔调",
+    "service": "服务热情、氛围感拉满、适合拍照打卡",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-008",
+    "name": "O.P.S.CAFE",
+    "district": "徐汇",
+    "address": "天平路街道太原路177弄1号临(近建国西路)",
+    "lng": 121.43093,
+    "lat": 31.18544,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 17077,
+    "avg_price": 60,
+    "tags": "高社交,10 平米迷你空间",
+    "description": "特调葡萄调性、埃塞日晒、椰奶 / 血橙风味、层次丰富；10 平米迷你空间、开放式吧台、轻松互动氛围",
+    "image": "coffee-008.png",
+    "bean_flavor": "特调葡萄调性、埃塞日晒、椰奶 / 血橙风味、层次丰富",
+    "social": "高社交（排队打卡、网红圣地、熟客社交货币）",
+    "space": "10 平米迷你空间、开放式吧台、轻松互动氛围",
+    "service": "沉浸式服务、手写卡片讲解、咖啡师热情沟通",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-009",
+    "name": "Plusone 咖啡 (安福路店)",
+    "district": "黄浦",
+    "address": "安福路156号",
+    "lng": 121.507299,
+    "lat": 31.23431,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.2,
+    "reviews": 2108,
+    "avg_price": 53,
+    "tags": "高社交,工业风露营主题",
+    "description": "深烘坚果巧克力、哥伦比亚拼配、醇厚细腻；工业风露营主题、混凝土墙面、溶洞感吧台",
+    "image": "coffee-009.png",
+    "bean_flavor": "深烘坚果巧克力、哥伦比亚拼配、醇厚细腻",
+    "social": "高社交（露营风打卡、网红街地标、好友小聚）",
+    "space": "工业风露营主题、混凝土墙面、溶洞感吧台",
+    "service": "出品丰富、氛围感强、适合拍照闲聊",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-010",
+    "name": "CAFE CHEZ W 一木家",
+    "district": "黄浦",
+    "address": "CAFE CHEZ W 一木家",
+    "lng": 121.475596,
+    "lat": 31.228982,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 4159,
+    "avg_price": 53,
+    "tags": "低社交,日系复古小洋房",
+    "description": "哥斯达黎加深烘黑巧、危地马拉果香、洪都拉斯酒香；日系复古小洋房、木质阁楼、梧桐树下治愈感",
+    "image": "coffee-010.png",
+    "bean_flavor": "哥斯达黎加深烘黑巧、危地马拉果香、洪都拉斯酒香",
+    "social": "低社交（老洋房松弛感、独处发呆）",
+    "space": "日系复古小洋房、木质阁楼、梧桐树下治愈感",
+    "service": "店主亲自服务、爱聊天无距离感、猫咪店长互动",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-011",
+    "name": "THE PRESS (申报馆店)",
+    "district": "黄浦",
+    "address": "THE PRESS (申报馆店)",
+    "lng": 121.49626,
+    "lat": 31.234584,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 13333,
+    "avg_price": 131,
+    "tags": "高社交,复古民国风",
+    "description": "香草拿铁风味、意式均衡、奶咖顺滑；复古民国风、挑高穹顶、老报纸文化氛围",
+    "image": "coffee-011.png",
+    "bean_flavor": "香草拿铁风味、意式均衡、奶咖顺滑",
+    "social": "高社交（民国风打卡、申报馆旧址、文化沙龙）",
+    "space": "复古民国风、挑高穹顶、老报纸文化氛围",
+    "service": "服务热情、历史讲解、适合打卡拍照",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-012",
+    "name": "Cafe del Volcan",
+    "district": "浦东新区",
+    "address": "永康路25号",
+    "lng": 121.534717,
+    "lat": 31.213279,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 2984,
+    "avg_price": 40,
+    "tags": "中社交,迷你小店",
+    "description": "树莓 / 山楂酸感、均衡甜度、肯尼亚柔和风味；迷你小店、工业风简约、随性站坐氛围",
+    "image": "coffee-012.png",
+    "bean_flavor": "树莓 / 山楂酸感、均衡甜度、肯尼亚柔和风味",
+    "social": "中社交（老外聚集、永康路网红店）",
+    "space": "迷你小店、工业风简约、随性站坐氛围",
+    "service": "咖啡师专业、豆子新鲜烘焙、热情讲解",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-013",
+    "name": "BLUE TERRIA 瑰夏星球",
+    "district": "浦东新区",
+    "address": "BLUE TERRIA 瑰夏星球",
+    "lng": 121.552418,
+    "lat": 31.238583,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 657,
+    "avg_price": 46,
+    "tags": "高社交,工业风克莱因蓝太空舱",
+    "description": "埃塞冠军豆柑橘香、浅烘清爽、无焦苦感；工业风克莱因蓝太空舱、江景位、ins 风大片",
+    "image": "coffee-013.png",
+    "bean_flavor": "埃塞冠军豆柑橘香、浅烘清爽、无焦苦感",
+    "social": "高社交（江景打卡、ins 风太空舱、落日出片）",
+    "space": "工业风克莱因蓝太空舱、江景位、ins 风大片",
+    "service": "店员热情、推荐特调、适合拍照打卡",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-014",
+    "name": "一尺花园 (颍川寄庐店)",
+    "district": "虹口",
+    "address": "四川北路989弄今潮8弄8号楼",
+    "lng": 121.504195,
+    "lat": 31.254737,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.7,
+    "reviews": 4964,
+    "avg_price": 65,
+    "tags": "中社交,百年石库门改造",
+    "description": "拿铁醇香、奶咖顺滑、无明显酸感；百年石库门改造、立体绿植天井、温馨壁炉区",
+    "image": "coffee-014.png",
+    "bean_flavor": "拿铁醇香、奶咖顺滑、无明显酸感",
+    "social": "中社交（好友小聚、下午茶打卡）",
+    "space": "百年石库门改造、立体绿植天井、温馨壁炉区",
+    "service": "服务贴心、空间分区合理、适合工作 / 小聚",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-015",
+    "name": "One Step Coffee 一尺之间",
+    "district": "虹口",
+    "address": "One Step Coffee 一尺之间",
+    "lng": 121.499581,
+    "lat": 31.281227,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4,
+    "reviews": 1094,
+    "avg_price": 42,
+    "tags": "低社交,中式园林风",
+    "description": "可可香甜尾韵、微苦平衡、奶咖丝滑；中式园林风、临水亲水平台、原木温室氛围",
+    "image": "coffee-015.png",
+    "bean_flavor": "可可香甜尾韵、微苦平衡、奶咖丝滑",
+    "social": "低社交（公园湖景独处、静音办公）",
+    "space": "中式园林风、临水亲水平台、原木温室氛围",
+    "service": "安静不打扰、适合发呆看书、自然治愈感",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-016",
+    "name": "恰和 1915 (滨江国际广场店)",
+    "district": "杨浦",
+    "address": "杨树浦路1056号小别墅",
+    "lng": 121.532392,
+    "lat": 31.251234,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 1976,
+    "avg_price": 47,
+    "tags": "中社交,民国老洋房改造",
+    "description": "拿铁顺滑、意式均衡、奶咖醇厚；民国老洋房改造、复古家具、江风宁静氛围",
+    "image": "coffee-016.png",
+    "bean_flavor": "拿铁顺滑、意式均衡、奶咖醇厚",
+    "social": "中社交（老洋房打卡、江景下午茶）",
+    "space": "民国老洋房改造、复古家具、江风宁静氛围",
+    "service": "服务周到、适合拍照、周末略吵",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-017",
+    "name": "白七咖啡 WHITE SEVEN",
+    "district": "杨浦",
+    "address": "平定路1号",
+    "lng": 121.510386,
+    "lat": 31.268933,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.8,
+    "reviews": 969,
+    "avg_price": 41,
+    "tags": "中社交,制皂厂改造工业风",
+    "description": "气泡美式微苦、埃塞豆甜感、奶咖醇厚；制皂厂改造工业风、露台江景、水泥管设计",
+    "image": "coffee-017.png",
+    "bean_flavor": "气泡美式微苦、埃塞豆甜感、奶咖醇厚",
+    "social": "中社交（工业风打卡、读书会活动）",
+    "space": "制皂厂改造工业风、露台江景、水泥管设计",
+    "service": "店员热情、气泡特调讲解、读书会互动",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-018",
+    "name": "PETITGEORGECAFE 小乔治",
+    "district": "长宁",
+    "address": "上海市长宁区延安西路1794号底层101、2层,距地铁延安西路站2口步行280m",
+    "lng": 121.43889,
+    "lat": 31.232596,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 4016,
+    "avg_price": 70,
+    "tags": "高社交,法式复古老洋房",
+    "description": "奶咖顺滑、拿铁醇厚、无明显酸感；法式复古老洋房、昏黄吊灯、斑驳皮质沙发",
+    "image": "coffee-018.png",
+    "bean_flavor": "奶咖顺滑、拿铁醇厚、无明显酸感",
+    "social": "高社交（复古风打卡、周末排队、brunch 聚会）",
+    "space": "法式复古老洋房、昏黄吊灯、斑驳皮质沙发",
+    "service": "服务友好、适合拍照、安静办公友好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-019",
+    "name": "Comer 转角咖啡 (江苏路店)",
+    "district": "长宁",
+    "address": "上海市长宁区江苏路121、123、155号31幢c座1楼",
+    "lng": 121.420536,
+    "lat": 31.211635,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 165,
+    "avg_price": 24,
+    "tags": "中社交,木质暖光治愈角落",
+    "description": "澳白醇厚、明治牛奶凸显风味、特调层次丰富；木质暖光治愈角落、临街安静氛围",
+    "image": "coffee-019.png",
+    "bean_flavor": "澳白醇厚、明治牛奶凸显风味、特调层次丰富",
+    "social": "中社交（约会打卡、好友小聚）",
+    "space": "木质暖光治愈角落、临街安静氛围",
+    "service": "店员热情、特调讲解、适合拍照约会",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-020",
+    "name": "Akimbo Cafe (愚园路店)",
+    "district": "长宁",
+    "address": "上海市长宁区愚园路1018号,距地铁11号线江苏路站6口步行240m",
+    "lng": 121.42033,
+    "lat": 31.214125,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 8222,
+    "avg_price": 51,
+    "tags": "高社交,复古工业风",
+    "description": "椰香斑斓特调、桃子米咖啡、氮气冷萃浓郁；复古工业风、两层通透落地窗、梧桐树下氛围",
+    "image": "coffee-020.png",
+    "bean_flavor": "椰香斑斓特调、桃子米咖啡、氮气冷萃浓郁",
+    "social": "高社交（网红打卡、老洋房拍照、brunch 聚会）",
+    "space": "复古工业风、两层通透落地窗、梧桐树下氛围",
+    "service": "服务专业、特调推荐、适合办公 / 拍照",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-021",
+    "name": "WABI COFE (愚园路店)",
+    "district": "长宁",
+    "address": "上海市长宁区愚园路1327号,距地铁中山公园站8口步行300m",
+    "lng": 121.439172,
+    "lat": 31.229309,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 4351,
+    "avg_price": 65,
+    "tags": "低社交,日式诧寂风庭院",
+    "description": "拿铁醇厚、手冲均衡、无焦苦感；日式诧寂风庭院、青石小路、木质移门静谧氛围",
+    "image": "coffee-021.png",
+    "bean_flavor": "拿铁醇厚、手冲均衡、无焦苦感",
+    "social": "低社交（诧寂风独处、雨天结界）",
+    "space": "日式诧寂风庭院、青石小路、木质移门静谧氛围",
+    "service": "咖啡师热情、豆子讲解、安静不打扰",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-022",
+    "name": "一期一会 Better Together",
+    "district": "长宁",
+    "address": "上海市长宁区泰安路115弄9号（停车在泰安路120弄）",
+    "lng": 121.425576,
+    "lat": 31.214158,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 2367,
+    "avg_price": 59,
+    "tags": "低社交,温馨小空间",
+    "description": "拼配豆黑巧风味、肯尼亚果甜、手冲甜感明显；温馨小空间、工业风简约、安静舒适",
+    "image": "coffee-022.png",
+    "bean_flavor": "拼配豆黑巧风味、肯尼亚果甜、手冲甜感明显",
+    "social": "低社交（社区小店、熟客为主）",
+    "space": "温馨小空间、工业风简约、安静舒适",
+    "service": "老板热情、磨豆前让闻风味、耐心讲解",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-023",
+    "name": "bebaked (愚园洋房店)",
+    "district": "长宁",
+    "address": "上海市长宁区江苏路街道愚园路1107号8号楼,距地铁11号线江苏路站8口步行440m",
+    "lng": 121.429068,
+    "lat": 31.233018,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.1,
+    "reviews": 9581,
+    "avg_price": 55,
+    "tags": "高社交,百年老洋房改造",
+    "description": "雪松咖啡柑橘果香、绿茶回甘、奶咖顺滑；百年老洋房改造、弧形窗街区景、明亮温暖氛围",
+    "image": "coffee-023.png",
+    "bean_flavor": "雪松咖啡柑橘果香、绿茶回甘、奶咖顺滑",
+    "social": "高社交（老洋房打卡、面包店人气、下午茶聚会）",
+    "space": "百年老洋房改造、弧形窗街区景、明亮温暖氛围",
+    "service": "服务周到、面包咖啡搭配推荐、适合拍照",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-024",
+    "name": "洋洋咖啡 (中山北路店)",
+    "district": "普陀",
+    "address": "上海市普陀区中山北路2020号,距地铁7号线镇坪路站4口步行260m",
+    "lng": 121.384791,
+    "lat": 31.251212,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.5,
+    "reviews": 551,
+    "avg_price": 31,
+    "tags": "低社交,两层闹中取静",
+    "description": "现磨咖啡香浓、拿铁拉花精致、奶味醇厚；两层闹中取静、临街安静氛围、原木温馨",
+    "image": "coffee-024.png",
+    "bean_flavor": "现磨咖啡香浓、拿铁拉花精致、奶味醇厚",
+    "social": "低社交（社区小店、附近上班族）",
+    "space": "两层闹中取静、临街安静氛围、原木温馨",
+    "service": "店员态度好、性价比高、服务温柔",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-025",
+    "name": "小时光咖啡馆 (长寿路店)",
+    "district": "普陀",
+    "address": "上海市普陀区长寿路652号上海国际时尚教育中心",
+    "lng": 121.413958,
+    "lat": 31.240145,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.5,
+    "reviews": 882,
+    "avg_price": 33,
+    "tags": "中社交,法式田园风",
+    "description": "冷萃一般、奶咖顺滑、无明显特色；法式田园风、奶白涂鸦墙、绿植庭院浪漫氛围",
+    "image": "coffee-025.png",
+    "bean_flavor": "冷萃一般、奶咖顺滑、无明显特色",
+    "social": "中社交（济州岛风打卡、办公聊天）",
+    "space": "法式田园风、奶白涂鸦墙、绿植庭院浪漫氛围",
+    "service": "服务一般、WiFi 信号差、部分评价态度敷衍",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-026",
+    "name": "HANA COFFEE (长寿路店)",
+    "district": "普陀",
+    "address": "上海市普陀区长寿路467号(靠近胶州路路口，近地铁长寿路站7号口,距地铁7号线长寿路站7口步行260m",
+    "lng": 121.386532,
+    "lat": 31.246016,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.6,
+    "reviews": 1744,
+    "avg_price": 35,
+    "tags": "高社交,全紫色工业风",
+    "description": "中浅烘埃塞饱满、Dirty 桂花软糖、特调乌梅酸梅汤感；全紫色工业风、门口敞开式空间、年轻打卡氛围",
+    "image": "coffee-026.png",
+    "bean_flavor": "中浅烘埃塞饱满、Dirty 桂花软糖、特调乌梅酸梅汤感",
+    "social": "高社交（紫色工业风打卡、宠物友好）",
+    "space": "全紫色工业风、门口敞开式空间、年轻打卡氛围",
+    "service": "店主有想法、豆子讲解、宠物友好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-027",
+    "name": "又山 COFFEE (中山北路店)",
+    "district": "普陀",
+    "address": "上海市普陀区中山北路3329号距地铁13号线金沙江路站出入口步行419m",
+    "lng": 121.41585,
+    "lat": 31.250056,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 753,
+    "avg_price": 41,
+    "tags": "低社交,临街小店",
+    "description": "埃塞日晒草莓莓果香气、高甜度、果味突出；临街小店、简单布置、温馨日常氛围",
+    "image": "coffee-027.png",
+    "bean_flavor": "埃塞日晒草莓莓果香气、高甜度、果味突出",
+    "social": "低社交（社区小店、附近居民）",
+    "space": "临街小店、简单布置、温馨日常氛围",
+    "service": "服务友好、豆子风味讲解、性价比高",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-028",
+    "name": "Liu・coffee 咖咖啡 (吉镇路店)",
+    "district": "普陀",
+    "address": "上海市普陀区吉镇路76号",
+    "lng": 121.415739,
+    "lat": 31.255535,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.6,
+    "reviews": 272,
+    "avg_price": 29,
+    "tags": "低社交,小而紧凑",
+    "description": "冰博克 Dirty 顺滑、拿铁偏淡、浓缩融合感好；小而紧凑、外场街边位、过年氛围布置",
+    "image": "coffee-028.png",
+    "bean_flavor": "冰博克 Dirty 顺滑、拿铁偏淡、浓缩融合感好",
+    "social": "低社交（社区小店、外场座位）",
+    "space": "小而紧凑、外场街边位、过年氛围布置",
+    "service": "服务一般、出品稳定、附近居民友好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-029",
+    "name": "THE・SECOND・少禾咖啡",
+    "district": "普陀",
+    "address": "上海市普陀区云岭东路599弄20号101-B室",
+    "lng": 121.38292,
+    "lat": 31.248125,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 283,
+    "avg_price": 32,
+    "tags": "中社交,苏河沿岸大玻璃窗",
+    "description": "三色童年拿铁趣味、奶咖甜感、冷萃清爽；苏河沿岸大玻璃窗、小清新明亮氛围",
+    "image": "coffee-029.png",
+    "bean_flavor": "三色童年拿铁趣味、奶咖甜感、冷萃清爽",
+    "social": "中社交（苏河打卡、朋友小聚）",
+    "space": "苏河沿岸大玻璃窗、小清新明亮氛围",
+    "service": "服务贴心、特调讲解、适合拍照打卡",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-030",
+    "name": "珀德 BWT 水塔咖啡",
+    "district": "普陀",
+    "address": "上海市普陀区莫干山路50号M50创意园8号楼201室",
+    "lng": 121.400399,
+    "lat": 31.266817,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 1020,
+    "avg_price": 44,
+    "tags": "高社交,1933 老水塔改造",
+    "description": "无明确风味描述（以环境打卡为主）；1933 老水塔改造、工业风废墟感、艺术园区氛围",
+    "image": "coffee-030.png",
+    "bean_flavor": "无明确风味描述（以环境打卡为主）",
+    "social": "高社交（M50 地标打卡、工业风拍照）",
+    "space": "1933 老水塔改造、工业风废墟感、艺术园区氛围",
+    "service": "服务一般、适合拍照、地标打卡",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-031",
+    "name": "Coffee Date (苏河汇店)",
+    "district": "普陀",
+    "address": "上海市普陀区长寿路街道光复西路1107号106(沿街)",
+    "lng": 121.397702,
+    "lat": 31.238493,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.5,
+    "reviews": 382,
+    "avg_price": 27,
+    "tags": "中社交,店面位置多",
+    "description": "维也纳咖啡奶油惊喜、咖啡味不够浓郁；店面位置多、苏河沿岸安静氛围",
+    "image": "coffee-031.png",
+    "bean_flavor": "维也纳咖啡奶油惊喜、咖啡味不够浓郁",
+    "social": "中社交（苏河闲逛小聚、一人发呆）",
+    "space": "店面位置多、苏河沿岸安静氛围",
+    "service": "服务一般、适合闲聊发呆",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-032",
+    "name": "nodcafe (M50 创意园店)",
+    "district": "普陀",
+    "address": "上海市普陀区莫干山路50号22号楼3楼（M50创意园区）",
+    "lng": 121.400844,
+    "lat": 31.252511,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.5,
+    "reviews": 401,
+    "avg_price": 43,
+    "tags": "中社交,满墙涂鸦",
+    "description": "无明确风味描述（以氛围打卡为主）；满墙涂鸦、黑胶露台、临河苏州河风景",
+    "image": "coffee-032.png",
+    "bean_flavor": "无明确风味描述（以氛围打卡为主）",
+    "social": "中社交（艺术园区打卡、黑胶露台氛围）",
+    "space": "满墙涂鸦、黑胶露台、临河苏州河风景",
+    "service": "服务一般、适合拍照、艺术氛围浓",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-033",
+    "name": "蔓陀花园咖啡",
+    "district": "闵行",
+    "address": "上海市闵行区颛桥镇申富路788号（得丘礼享谷文创园内）",
+    "lng": 121.373763,
+    "lat": 31.102816,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.2,
+    "reviews": 4115,
+    "avg_price": 53,
+    "tags": "高社交打卡,花园氛围",
+    "description": "中深烘咖啡香；花园氛围",
+    "image": "coffee-033.png",
+    "bean_flavor": "中深烘咖啡香",
+    "social": "高社交打卡",
+    "space": "花园氛围",
+    "service": "服务慢（客人多）",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-034",
+    "name": "暴走的咖啡豆",
+    "district": "闵行",
+    "address": "上海市闵行区东川路800号上海交通大学人文学院二楼",
+    "lng": 121.36293,
+    "lat": 31.120653,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4,
+    "reviews": 758,
+    "avg_price": 20,
+    "tags": "学生友好,现代整洁",
+    "description": "浓郁可口；现代整洁",
+    "image": "coffee-034.png",
+    "bean_flavor": "浓郁可口",
+    "social": "学生友好",
+    "space": "现代整洁",
+    "service": "员工热情",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-035",
+    "name": "Habitat Mars",
+    "district": "闵行",
+    "address": "上海市闵行区合川路3088号体汇+合川小镇2号楼",
+    "lng": 121.391699,
+    "lat": 31.111468,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.7,
+    "reviews": 205,
+    "avg_price": 37,
+    "tags": "低社交办公,极简工业风",
+    "description": "奶咖顺滑；极简工业风",
+    "image": "coffee-035.png",
+    "bean_flavor": "奶咖顺滑",
+    "social": "低社交办公",
+    "space": "极简工业风",
+    "service": "服务贴心",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-036",
+    "name": "质馆咖啡 (爱琴海店)",
+    "district": "闵行",
+    "address": "上海市闵行区虹井路120弄3号楼新华红星国际广场A栋112号",
+    "lng": 121.371636,
+    "lat": 31.128452,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 624,
+    "avg_price": 36,
+    "tags": "低社交吧台互动,欧洲照片格调",
+    "description": "洪都拉斯酒桶发酵；欧洲照片格调",
+    "image": "coffee-036.png",
+    "bean_flavor": "洪都拉斯酒桶发酵",
+    "social": "低社交吧台互动",
+    "space": "欧洲照片格调",
+    "service": "咖啡师老道",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-037",
+    "name": "白鲸咖啡豆店",
+    "district": "宝山",
+    "address": "上海市宝山区大场镇真大路520号米谷产业园11栋",
+    "lng": 121.497402,
+    "lat": 31.39807,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.8,
+    "reviews": 202,
+    "avg_price": 37,
+    "tags": "低社交社区店,简约温馨",
+    "description": "精品手冲；简约温馨",
+    "image": "coffee-037.png",
+    "bean_flavor": "精品手冲",
+    "social": "低社交社区店",
+    "space": "简约温馨",
+    "service": "豆子讲解",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-038",
+    "name": "空咖 (大华老镇)",
+    "district": "宝山",
+    "address": "上海市宝山区场中路4098弄20号楼1楼",
+    "lng": 121.476142,
+    "lat": 31.395349,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.7,
+    "reviews": 1759,
+    "avg_price": 46,
+    "tags": "中社交社区聚会,复古工业风",
+    "description": "意式均衡；复古工业风",
+    "image": "coffee-038.png",
+    "bean_flavor": "意式均衡",
+    "social": "中社交社区聚会",
+    "space": "复古工业风",
+    "service": "服务热情",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-039",
+    "name": "KOPI HANA",
+    "district": "宝山",
+    "address": "上海市宝山区蕰川路6号56B-102号",
+    "lng": 121.492839,
+    "lat": 31.410632,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": null,
+    "reviews": null,
+    "avg_price": null,
+    "tags": "低社交手工烘焙,温馨小店",
+    "description": "印尼风味咖啡；温馨小店",
+    "image": "coffee-039.png",
+    "bean_flavor": "印尼风味咖啡",
+    "social": "低社交手工烘焙",
+    "space": "温馨小店",
+    "service": "店主友好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-040",
+    "name": "Back Flow 回流咖啡",
+    "district": "嘉定",
+    "address": "上海市嘉定区殷高西路711号高境文化广场一楼105-1号",
+    "lng": 121.274467,
+    "lat": 31.375994,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.1,
+    "reviews": 242,
+    "avg_price": 26,
+    "tags": "低社交社区店,高境文化广场氛围",
+    "description": "手冲醇厚；高境文化广场氛围",
+    "image": "coffee-040.png",
+    "bean_flavor": "手冲醇厚",
+    "social": "低社交社区店",
+    "space": "高境文化广场氛围",
+    "service": "安静服务",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-041",
+    "name": "CUPPER 精品咖啡",
+    "district": "嘉定",
+    "address": "上海市嘉定区墨玉南路西上海大厦一层",
+    "lng": 121.247477,
+    "lat": 31.374328,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 215,
+    "avg_price": 28,
+    "tags": "低社交安亭社区,简约工业风",
+    "description": "意式均衡；简约工业风",
+    "image": "coffee-041.png",
+    "bean_flavor": "意式均衡",
+    "social": "低社交安亭社区",
+    "space": "简约工业风",
+    "service": "咖啡师专业",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-042",
+    "name": "烤包子咖啡屋",
+    "district": "嘉定",
+    "address": "上海市嘉定区昌徐路沁苑生态园艺公司西80米",
+    "lng": 121.275615,
+    "lat": 31.371359,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.2,
+    "reviews": 498,
+    "avg_price": 54,
+    "tags": "中社交南翔打卡,市井温馨风",
+    "description": "奶咖顺滑；市井温馨风",
+    "image": "coffee-042.png",
+    "bean_flavor": "奶咖顺滑",
+    "social": "中社交南翔打卡",
+    "space": "市井温馨风",
+    "service": "店主热情",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-043",
+    "name": "Maddog Coffee",
+    "district": "嘉定",
+    "address": "上海市嘉定区进明渡路212弄31号1层（麦当劳隔壁）",
+    "lng": 121.25023,
+    "lat": 31.383439,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.6,
+    "reviews": 721,
+    "avg_price": 37,
+    "tags": "中社交生气小狗主题,街边小店",
+    "description": "特调创意；街边小店",
+    "image": "coffee-043.png",
+    "bean_flavor": "特调创意",
+    "social": "中社交生气小狗主题",
+    "space": "街边小店",
+    "service": "服务活泼",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-044",
+    "name": "长兴咖啡",
+    "district": "嘉定",
+    "address": "上海市嘉定区南翔镇共和街28号",
+    "lng": 121.272522,
+    "lat": 31.36657,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.6,
+    "reviews": 906,
+    "avg_price": 43,
+    "tags": "低社交南翔名士居,中式雅致氛围",
+    "description": "社区日常风味；中式雅致氛围",
+    "image": "coffee-044.png",
+    "bean_flavor": "社区日常风味",
+    "social": "低社交南翔名士居",
+    "space": "中式雅致氛围",
+    "service": "服务亲切",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-045",
+    "name": "欢喜小院 (东夏村)",
+    "district": "松江",
+    "address": "上海市松江区东夏村东三284号102室",
+    "lng": 121.222042,
+    "lat": 31.047892,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4,
+    "reviews": 996,
+    "avg_price": 51,
+    "tags": "低社交乡村小院,田园风静谧",
+    "description": "农家特调咖啡；田园风静谧",
+    "image": "coffee-045.png",
+    "bean_flavor": "农家特调咖啡",
+    "social": "低社交乡村小院",
+    "space": "田园风静谧",
+    "service": "服务朴实",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-046",
+    "name": "Meraki Cafe",
+    "district": "松江",
+    "address": "上海市松江区文涵路736号",
+    "lng": 121.227595,
+    "lat": 31.021948,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 193,
+    "avg_price": 48,
+    "tags": "低安静社区店,原木温馨",
+    "description": "手冲清爽；原木温馨",
+    "image": "coffee-046.png",
+    "bean_flavor": "手冲清爽",
+    "social": "低安静社区店",
+    "space": "原木温馨",
+    "service": "店主友好",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-047",
+    "name": "RICE SHOP",
+    "district": "青浦",
+    "address": "上海市青浦区浦仓路336号距上海桥梓湾购物中心步行980m",
+    "lng": 121.131685,
+    "lat": 31.166559,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 181,
+    "avg_price": 23,
+    "tags": "低社交社区店,日式极简风",
+    "description": "简约意式；日式极简风",
+    "image": "coffee-047.png",
+    "bean_flavor": "简约意式",
+    "social": "低社交社区店",
+    "space": "日式极简风",
+    "service": "服务安静",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-048",
+    "name": "NOWER COFFEE 即刻",
+    "district": "青浦",
+    "address": "上海市青浦区青安路161号",
+    "lng": 121.103669,
+    "lat": 31.155275,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.6,
+    "reviews": 288,
+    "avg_price": 24,
+    "tags": "中社交办公友好,明亮快闪风",
+    "description": "平价冰美；明亮快闪风",
+    "image": "coffee-048.png",
+    "bean_flavor": "平价冰美",
+    "social": "中社交办公友好",
+    "space": "明亮快闪风",
+    "service": "服务高效",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-049",
+    "name": "Fan+ COFFEE",
+    "district": "青浦",
+    "address": "上海市青浦区城中东路66号",
+    "lng": 121.134539,
+    "lat": 31.143917,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.7,
+    "reviews": 266,
+    "avg_price": 35,
+    "tags": "低社交城中东路社区,温馨小店",
+    "description": "奶咖醇厚；温馨小店",
+    "image": "coffee-049.png",
+    "bean_flavor": "奶咖醇厚",
+    "social": "低社交城中东路社区",
+    "space": "温馨小店",
+    "service": "服务亲切",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-050",
+    "name": "柿间・云饮",
+    "district": "奉贤",
+    "address": "上海市奉贤区奉城镇协新路新民村同心四组3支路317号",
+    "lng": 121.455609,
+    "lat": 30.906913,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.4,
+    "reviews": 267,
+    "avg_price": 49,
+    "tags": "低社交新民村打卡,田园治愈风",
+    "description": "乡村特调咖啡；田园治愈风",
+    "image": "coffee-050.png",
+    "bean_flavor": "乡村特调咖啡",
+    "social": "低社交新民村打卡",
+    "space": "田园治愈风",
+    "service": "服务热情",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-051",
+    "name": "无忧闲院",
+    "district": "奉贤",
+    "address": "上海市奉贤区李窑村(走平庄东路)李窑中心路111号",
+    "lng": 121.481622,
+    "lat": 30.926748,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 4.3,
+    "reviews": 3207,
+    "avg_price": 53,
+    "tags": "低社交平庄东路社区,中式庭院风",
+    "description": "社区日常咖啡；中式庭院风",
+    "image": "coffee-051.png",
+    "bean_flavor": "社区日常咖啡",
+    "social": "低社交平庄东路社区",
+    "space": "中式庭院风",
+    "service": "服务朴实",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-052",
+    "name": "和咖啡",
+    "district": "金山",
+    "address": "上海市金山区高桥路荡里路交叉口高桥1195-1号,距荡里路与高桥路交叉口20m",
+    "lng": 121.335928,
+    "lat": 30.725592,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 329,
+    "avg_price": 41,
+    "tags": "低社交社区店,温馨日常风",
+    "description": "意式均衡；温馨日常风",
+    "image": "coffee-052.png",
+    "bean_flavor": "意式均衡",
+    "social": "低社交社区店",
+    "space": "温馨日常风",
+    "service": "服务亲切",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-053",
+    "name": "MUSEO COFFEE",
+    "district": "金山",
+    "address": "上海市金山区田园南路7058-1号",
+    "lng": 121.341574,
+    "lat": 30.751518,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 1298,
+    "avg_price": 67,
+    "tags": "中社交打卡,工业风展馆氛围",
+    "description": "咖啡博物馆特调；工业风展馆氛围",
+    "image": "coffee-053.png",
+    "bean_flavor": "咖啡博物馆特调",
+    "social": "中社交打卡",
+    "space": "工业风展馆氛围",
+    "service": "讲解服务",
+    "location_accuracy": "district_approx"
+  },
+  {
+    "id": "coffee-054",
+    "name": "商品书院",
+    "district": "金山",
+    "address": "上海市金山区漕泾镇水库村长堰路1082",
+    "lng": 121.335469,
+    "lat": 30.745527,
+    "coord_system": "GCJ02",
+    "type": "indep",
+    "rating": 3.9,
+    "reviews": 217,
+    "avg_price": 37,
+    "tags": "低社交社区小店,书院文艺氛围",
+    "description": "手冲清爽；书院文艺氛围",
+    "image": "coffee-054.png",
+    "bean_flavor": "手冲清爽",
+    "social": "低社交社区小店",
+    "space": "书院文艺氛围",
+    "service": "安静服务",
+    "location_accuracy": "district_approx"
+  }
+];
+/* DATA_END */
+
+    const COLORS = ["#d66a4a", "#dda83b", "#397a72", "#6f8f9d", "#c77b56", "#9c8466"];
+    const TYPE_LABELS = { indep: "独立咖啡", chain: "连锁咖啡", hot: "热门咖啡" };
+    const PLACEHOLDER = "assets/flowers/placeholder.png";
+
+    const state = {
+      level: "L1",
+      district: null,
+      shop: null,
+      shops: [],
+      issues: [],
+      map: null,
+      AMap: null,
+      polygons: new Map(),
+      districtLabels: new Map(),
+      shopMarkers: new Map(),
+      fallbackMarkers: new Map(),
+      fallbackDistricts: new Map(),
+      fallbackRegions: new Map(),
+      overviewPositions: new Map(),
+      focusPositions: new Map(),
+      districtAnchors: new Map(),
+      districtLabelPositions: new Map(),
+      suppressMapClick: false
+    };
+
+    const els = {
+      notice: document.getElementById("map-notice"),
+      noticeTitle: document.getElementById("notice-title"),
+      noticeText: document.getElementById("notice-text"),
+      breadcrumb: document.getElementById("breadcrumb"),
+      back: document.getElementById("back-button"),
+      districtList: document.getElementById("district-list"),
+      districtGrid: document.getElementById("district-grid"),
+      qualityButton: document.getElementById("quality-button"),
+      qualityPanel: document.getElementById("quality-panel"),
+      qualityClose: document.getElementById("quality-close"),
+      qualitySummary: document.getElementById("quality-summary"),
+      issueList: document.getElementById("issue-list"),
+      card: document.getElementById("shop-card"),
+      cardClose: document.getElementById("card-close"),
+      app: document.getElementById("app"),
+      map: document.getElementById("map"),
+      fallbackMap: document.getElementById("fallback-map"),
+      fallbackStage: document.getElementById("fallback-stage"),
+      fallbackRegions: document.getElementById("fallback-region-layer"),
+      fallbackMarkers: document.getElementById("fallback-marker-layer"),
+      fallbackDistricts: document.getElementById("fallback-district-layer")
+    };
+
+    function addIssue(level, id, message) {
+      state.issues.push({ level, id: id || "数据集", message });
+    }
+
+    function cleanText(value) {
+      return value == null ? "" : String(value).trim();
+    }
+
+    function validateData(rows) {
+      const ids = new Set();
+      const valid = [];
+      for (const source of rows) {
+        const shop = { ...source };
+        shop.id = cleanText(shop.id);
+        shop.name = cleanText(shop.name);
+        const district = cleanText(shop.district);
+        shop.district = district.endsWith("新区") ? district : district.replace(/区$/, "");
+        shop.address = cleanText(shop.address);
+        shop.coord_system = cleanText(shop.coord_system).toUpperCase();
+        shop.image = cleanText(shop.image);
+        shop.lng = Number(shop.lng);
+        shop.lat = Number(shop.lat);
+
+        if (!shop.id || !shop.name || !shop.district || !shop.address) {
+          addIssue("error", shop.id || shop.name, "缺少 id、name、district 或 address，已跳过");
+          continue;
+        }
+        if (ids.has(shop.id)) {
+          addIssue("error", shop.id, "ID 重复，已跳过后出现的记录");
+          continue;
+        }
+        ids.add(shop.id);
+        if (!Number.isFinite(shop.lng) || !Number.isFinite(shop.lat) || shop.lng < 120.5 || shop.lng > 122.3 || shop.lat < 30.5 || shop.lat > 31.9) {
+          addIssue("error", shop.id, "坐标缺失或不在上海合理范围内，已跳过");
+          continue;
+        }
+        if (!["GCJ02", "WGS84", "BD09", "UNKNOWN"].includes(shop.coord_system)) {
+          addIssue("error", shop.id, `不支持的坐标系 ${shop.coord_system || "空值"}，已跳过`);
+          continue;
+        }
+        if (shop.coord_system === "UNKNOWN") {
+          addIssue("error", shop.id, "坐标系未知，未猜测坐标，已跳过");
+          continue;
+        }
+        if (!shop.image) addIssue("warning", shop.id, "未填写花束图片，将使用占位图");
+        valid.push(shop);
+      }
+      const approximate = valid.filter((shop) => shop.location_accuracy === "district_approx").length;
+      if (approximate) addIssue("warning", "位置", `${approximate} 家门店缺少精确地址和坐标，当前按行政区近似分布`);
+      return valid;
+    }
+
+    function convertOne(shop) {
+      if (shop.coord_system === "GCJ02") return Promise.resolve(shop);
+      const source = shop.coord_system === "WGS84" ? "gps" : "baidu";
+      return new Promise((resolve) => {
+        state.AMap.convertFrom([shop.lng, shop.lat], source, (status, result) => {
+          if (status === "complete" && result.locations && result.locations[0]) {
+            const loc = result.locations[0];
+            resolve({ ...shop, lng: loc.lng, lat: loc.lat, coord_system: "GCJ02" });
+          } else {
+            addIssue("error", shop.id, `${shop.coord_system} 坐标转换失败，已跳过`);
+            resolve(null);
+          }
+        });
+      });
+    }
+
+    function groupByDistrict() {
+      return state.shops.reduce((groups, shop) => {
+        if (!groups.has(shop.district)) groups.set(shop.district, []);
+        groups.get(shop.district).push(shop);
+        return groups;
+      }, new Map());
+    }
+
+    function districtColor(district) {
+      const names = [...groupByDistrict().keys()];
+      return COLORS[Math.max(0, names.indexOf(district)) % COLORS.length];
+    }
+
+    function markerImage(shop) {
+      return shop.image ? `assets/flowers/${shop.image}` : PLACEHOLDER;
+    }
+
+    function swayDelay(shop) {
+      const seed = String(shop.id || shop.name).split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+      return `-${(seed % 38 / 10).toFixed(1)}s`;
+    }
+
+    function fallbackImage(event) {
+      const img = event.currentTarget;
+      if (!img.src.endsWith("placeholder.png")) img.src = PLACEHOLDER;
+    }
+
+    function geoToPercent(lng, lat) {
+      const west = 120.95, east = 121.90, south = 30.65, north = 31.62;
+      const x = 10 + Math.max(0, Math.min(1, (lng - west) / (east - west))) * 80;
+      const y = 8 + Math.max(0, Math.min(1, (north - lat) / (north - south))) * 84;
+      return [x, y];
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function seededValue(text, offset = 0) {
+      const source = `${text || ""}:${offset}`;
+      let hash = 2166136261;
+      for (let index = 0; index < source.length; index += 1) {
+        hash ^= source.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+      }
+      return ((hash >>> 0) % 10000) / 10000;
+    }
+
+    function safeBounds(width, height) {
+      const mobile = width <= 720;
+      const sideInset = mobile ? .16 : .15;
+      const topInset = mobile ? .28 : .25;
+      const bottomInset = mobile ? .18 : .16;
+      return {
+        minX: Math.max(mobile ? 66 : 150, width * sideInset),
+        maxX: Math.min(width - (mobile ? 66 : 160), width * (1 - sideInset)),
+        minY: Math.max(mobile ? 220 : 250, height * topInset),
+        maxY: Math.min(height - (mobile ? 158 : 145), height * (1 - bottomInset)),
+        labelTop: Math.max(mobile ? 140 : 168, height * (topInset - .09))
+      };
+    }
+
+    function riverXAtY(y, width, height) {
+      const topX = width * .79;
+      const bottomX = width * .34;
+      const topY = height * .07;
+      const bottomY = height * .92;
+      const progress = clamp((y - topY) / (bottomY - topY), 0, 1);
+      const bend = Math.sin(progress * Math.PI * 2.15) * width * .035;
+      return topX + (bottomX - topX) * progress + bend;
+    }
+
+    function clampToRiverSide(anchor, district, bounds, width, height, scale) {
+      const isPudong = district === "浦东新区";
+      const gap = (isPudong ? 74 : 92) * scale;
+      const riverX = riverXAtY(anchor[1], width, height);
+      const x = isPudong
+        ? clamp(Math.max(anchor[0], riverX + gap), bounds.minX, bounds.maxX)
+        : clamp(Math.min(anchor[0], riverX - gap), bounds.minX, bounds.maxX);
+      return [x, anchor[1]];
+    }
+
+    function clampPoint(point, bounds, margin = 0) {
+      return [
+        clamp(point[0], bounds.minX + margin, bounds.maxX - margin),
+        clamp(point[1], bounds.minY + margin, bounds.maxY - margin)
+      ];
+    }
+
+    function layoutScale(width) {
+      if (width <= 720) return .72;
+      if (width <= 1180) return .86;
+      return 1;
+    }
+
+    const DISTRICT_ANCHOR_HINTS = {
+      "嘉定": [24, 24],
+      "宝山": [55, 22],
+      "普陀": [34, 38],
+      "静安": [45, 42],
+      "虹口": [56, 36],
+      "杨浦": [63, 42],
+      "长宁": [34, 50],
+      "黄浦": [53, 52],
+      "徐汇": [43, 61],
+      "闵行": [35, 72],
+      "青浦": [18, 60],
+      "松江": [26, 82],
+      "金山": [34, 91],
+      "奉贤": [57, 86],
+      "浦东新区": [82, 57]
+    };
+
+    function districtGroups() {
+      return [...groupByDistrict()].map(([district, shops]) => ({ district, shops, center: shopCenter(shops) }));
+    }
+
+    function bouquetOffset(index, count, district, mode, scale) {
+      if (count === 1) return [0, 0];
+      const seed = seededValue(district, index);
+      const golden = Math.PI * (3 - Math.sqrt(5));
+      const radiusBase = mode === "focus" ? 66 : 28;
+      const radiusStep = mode === "focus" ? 10 : 4;
+      const radius = (radiusBase + Math.min(9, count) * radiusStep) * scale;
+      if (index === 0) return [0, -radius * .16];
+      const ring = Math.sqrt(index / Math.max(1, count - 1));
+      const angle = -Math.PI * .64 + index * golden + (seed - .5) * .68;
+      const x = Math.cos(angle) * radius * ring * (mode === "focus" ? 1.08 : .92);
+      const y = Math.sin(angle) * radius * ring * .72 + index * (mode === "focus" ? 8 : 5) * scale;
+      return [x, y];
+    }
+
+    function bouquetPoints(anchor, shops, district, mode, scale, bounds) {
+      const points = shops.map((shop, index) => {
+        const offset = bouquetOffset(index, shops.length, district, mode, scale);
+        return { shop, x: anchor[0] + offset[0], y: anchor[1] + offset[1] };
+      });
+      const target = (mode === "focus" ? 72 : 40) * scale;
+      for (let pass = 0; pass < 42; pass += 1) {
+        for (let a = 0; a < points.length; a += 1) {
+          for (let b = a + 1; b < points.length; b += 1) {
+            const first = points[a];
+            const second = points[b];
+            let dx = second.x - first.x;
+            let dy = second.y - first.y;
+            let distance = Math.hypot(dx, dy);
+            if (distance < .01) {
+              dx = seededValue(first.shop.id, b) - .5;
+              dy = seededValue(second.shop.id, a) - .5;
+              distance = Math.hypot(dx, dy) || 1;
+            }
+            if (distance >= target) continue;
+            const push = (target - distance) * .22;
+            const ux = dx / distance;
+            const uy = dy / distance;
+            first.x -= ux * push;
+            first.y -= uy * push;
+            second.x += ux * push;
+            second.y += uy * push;
+          }
+        }
+        for (const point of points) {
+          [point.x, point.y] = clampPoint([point.x, point.y], bounds, mode === "focus" ? 18 : 10);
+        }
+      }
+      return points;
+    }
+
+    function computeOverviewPositions() {
+      const width = els.fallbackMap.clientWidth || innerWidth || 1200;
+      const height = els.fallbackMap.clientHeight || innerHeight || 800;
+      const bounds = safeBounds(width, height);
+      const scale = layoutScale(width);
+      const groups = districtGroups().map((group) => {
+        const [px, py] = geoToPercent(group.center[0], group.center[1]);
+        const hint = DISTRICT_ANCHOR_HINTS[group.district] || [px, py];
+        const blend = DISTRICT_ANCHOR_HINTS[group.district] ? .86 : .35;
+        const hintedX = bounds.minX + hint[0] / 100 * (bounds.maxX - bounds.minX);
+        const hintedY = bounds.minY + hint[1] / 100 * (bounds.maxY - bounds.minY);
+        const geoX = px / 100 * width;
+        const geoY = py / 100 * height;
+        const targetX = hintedX * blend + geoX * (1 - blend);
+        const targetY = hintedY * blend + geoY * (1 - blend);
+        const jitterX = (seededValue(group.district, 1) - .5) * 20 * scale;
+        const jitterY = (seededValue(group.district, 2) - .5) * 16 * scale;
+        let anchor = clampPoint([targetX + jitterX, targetY + jitterY], bounds, 28 * scale);
+        anchor = clampToRiverSide(anchor, group.district, bounds, width, height, scale);
+        return { ...group, anchor };
+      });
+
+      const minDistance = width <= 720 ? 62 : 138;
+      for (let pass = 0; pass < 72; pass += 1) {
+        for (let a = 0; a < groups.length; a += 1) {
+          for (let b = a + 1; b < groups.length; b += 1) {
+            const first = groups[a];
+            const second = groups[b];
+            let dx = second.anchor[0] - first.anchor[0];
+            let dy = second.anchor[1] - first.anchor[1];
+            let distance = Math.hypot(dx, dy);
+            if (distance < .01) {
+              dx = seededValue(`${first.district}${second.district}`) - .5;
+              dy = seededValue(`${second.district}${first.district}`) - .5;
+              distance = Math.hypot(dx, dy) || 1;
+            }
+            const target = minDistance + (Math.sqrt(first.shops.length) + Math.sqrt(second.shops.length)) * 9 * scale;
+            if (distance >= target) continue;
+            const push = (target - distance) * .22;
+            const ux = dx / distance;
+            const uy = dy / distance;
+            first.anchor = clampPoint([first.anchor[0] - ux * push, first.anchor[1] - uy * push], bounds, 34 * scale);
+            second.anchor = clampPoint([second.anchor[0] + ux * push, second.anchor[1] + uy * push], bounds, 34 * scale);
+            first.anchor = clampToRiverSide(first.anchor, first.district, bounds, width, height, scale);
+            second.anchor = clampToRiverSide(second.anchor, second.district, bounds, width, height, scale);
+          }
+        }
+      }
+
+      state.overviewPositions.clear();
+      state.focusPositions.clear();
+      state.districtAnchors.clear();
+      state.districtLabelPositions.clear();
+      const labelItems = [];
+
+      for (const group of groups) {
+        state.districtAnchors.set(group.district, [group.anchor[0] / width * 100, group.anchor[1] / height * 100]);
+        const labelX = clamp(group.anchor[0] + (seededValue(group.district, 4) - .5) * 22 * scale, bounds.minX, bounds.maxX);
+        const labelY = clamp(group.anchor[1] - (18 + Math.min(20, group.shops.length * 1.8)) * scale, bounds.labelTop, bounds.maxY);
+        labelItems.push({
+          district: group.district,
+          x: labelX,
+          y: labelY,
+          anchorX: group.anchor[0],
+          anchorY: group.anchor[1],
+          w: (54 + group.district.length * 12 + String(group.shops.length).length * 8) * scale,
+          h: 34 * scale
+        });
+
+        const overviewPoints = bouquetPoints(group.anchor, group.shops, group.district, "overview", scale, bounds);
+        const focusPoints = bouquetPoints(group.anchor, group.shops, group.district, "focus", scale, bounds);
+        for (const point of overviewPoints) {
+          state.overviewPositions.set(point.shop.id, [point.x / width * 100, point.y / height * 100]);
+        }
+        for (const point of focusPoints) {
+          state.focusPositions.set(point.shop.id, [point.x / width * 100, point.y / height * 100]);
+        }
+      }
+
+      for (let pass = 0; pass < 60; pass += 1) {
+        for (let a = 0; a < labelItems.length; a += 1) {
+          for (let b = a + 1; b < labelItems.length; b += 1) {
+            const first = labelItems[a];
+            const second = labelItems[b];
+            const overlapX = (first.w + second.w) / 2 + 10 * scale - Math.abs(second.x - first.x);
+            const overlapY = (first.h + second.h) / 2 + 8 * scale - Math.abs(second.y - first.y);
+            if (overlapX <= 0 || overlapY <= 0) continue;
+            let dx = second.x - first.x;
+            let dy = second.y - first.y;
+            const distance = Math.hypot(dx, dy) || 1;
+            if (distance < 1.5) {
+              dx = seededValue(`${first.district}${second.district}`, pass) - .5;
+              dy = seededValue(`${second.district}${first.district}`, pass) - .5;
+            }
+            const push = Math.min(16 * scale, Math.max(overlapX, overlapY) * .28);
+            const ux = dx / (Math.hypot(dx, dy) || 1);
+            const uy = dy / (Math.hypot(dx, dy) || 1);
+            first.x -= ux * push;
+            first.y -= uy * push;
+            second.x += ux * push;
+            second.y += uy * push;
+          }
+        }
+        for (const item of labelItems) {
+          const maxDrift = (58 + Math.min(34, item.w * .22)) * scale;
+          const dx = clamp(item.x - item.anchorX, -maxDrift, maxDrift);
+          const dy = clamp(item.y - item.anchorY, -maxDrift * .8, maxDrift * .8);
+          item.x = clamp(item.anchorX + dx, bounds.minX, bounds.maxX);
+          item.y = clamp(item.anchorY + dy, bounds.labelTop, bounds.maxY);
+        }
+      }
+
+      for (const item of labelItems) {
+        state.districtLabelPositions.set(item.district, [item.x / width * 100, item.y / height * 100]);
+      }
+    }
+
+    function updateFallbackMarkerPositions() {
+      for (const shop of state.shops) {
+        const marker = state.fallbackMarkers.get(shop.id);
+        if (!marker) continue;
+        const position = state.level === "L1"
+          ? state.overviewPositions.get(shop.id) || geoToPercent(shop.lng, shop.lat)
+          : state.focusPositions.get(shop.id) || geoToPercent(shop.lng, shop.lat);
+        marker.style.left = `${position[0]}%`;
+        marker.style.top = `${position[1]}%`;
+        const baseZ = Math.round(position[1] * 10);
+        marker.style.zIndex = String(baseZ + (shop.id === state.shop?.id ? 1000 : 0));
+      }
+      for (const [district, label] of state.fallbackDistricts) {
+        const position = state.districtLabelPositions.get(district) || state.districtAnchors.get(district);
+        if (!position) continue;
+        label.style.left = `${position[0]}%`;
+        label.style.top = `${position[1]}%`;
+      }
+      for (const [district, region] of state.fallbackRegions) {
+        const anchor = state.districtAnchors.get(district);
+        if (!anchor) continue;
+        const shops = state.shops.filter((shop) => shop.district === district);
+        const width = 132 + Math.min(160, shops.length * 18);
+        const height = 94 + Math.min(120, shops.length * 13);
+        region.style.left = `${anchor[0]}%`;
+        region.style.top = `${anchor[1]}%`;
+        region.style.setProperty("--region-width", `${width}px`);
+        region.style.setProperty("--region-height", `${height}px`);
+      }
+    }
+
+    function createFallbackFlower(shop) {
+      const [x, y] = geoToPercent(shop.lng, shop.lat);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "flower-marker fallback-flower overview";
+      button.dataset.shopId = shop.id;
+      button.style.left = `${x}%`;
+      button.style.top = `${y}%`;
+      button.style.setProperty("--sway-delay", swayDelay(shop));
+      const img = document.createElement("img");
+      img.src = markerImage(shop);
+      img.alt = `${shop.name} 花束标记`;
+      img.addEventListener("error", fallbackImage);
+      const label = document.createElement("span");
+      label.textContent = shop.name;
+      button.append(img, label);
+      button.addEventListener("click", () => {
+        if (state.level === "L1") setView("L2", { district: shop.district });
+        else setView("L3", { shop });
+      });
+      return button;
+    }
+
+    function buildFallbackMap() {
+      els.fallbackMarkers.replaceChildren();
+      els.fallbackDistricts.replaceChildren();
+      els.fallbackRegions.replaceChildren();
+      state.fallbackMarkers.clear();
+      state.fallbackDistricts.clear();
+      state.fallbackRegions.clear();
+      for (const [district, shops] of groupByDistrict()) {
+        const center = shopCenter(shops);
+        const [x, y] = geoToPercent(center[0], center[1]);
+        const region = document.createElement("div");
+        region.className = "fallback-region";
+        region.style.left = `${x}%`;
+        region.style.top = `${y}%`;
+        region.style.setProperty("--region-color", districtColor(district));
+        region.style.setProperty("--region-rotate", `${Math.round((seededValue(district, 8) - .5) * 32)}deg`);
+        els.fallbackRegions.appendChild(region);
+        state.fallbackRegions.set(district, region);
+
+        const label = document.createElement("button");
+        label.type = "button";
+        label.className = "fallback-district";
+        label.style.left = `${x}%`;
+        label.style.top = `${y}%`;
+        label.style.setProperty("--label-color", districtColor(district));
+        label.textContent = `${district} · ${shops.length}`;
+        label.addEventListener("click", (event) => {
+          event.stopPropagation();
+          setView("L2", { district });
+        });
+        els.fallbackDistricts.appendChild(label);
+        state.fallbackDistricts.set(district, label);
+      }
+      for (const shop of state.shops) {
+        const marker = createFallbackFlower(shop);
+        els.fallbackMarkers.appendChild(marker);
+        state.fallbackMarkers.set(shop.id, marker);
+      }
+      computeOverviewPositions();
+      updateFallbackMarkerPositions();
+    }
+
+    function syncMarkerClasses() {
+      for (const shop of state.shops) {
+        const elements = [];
+        const mapMarker = state.shopMarkers.get(shop.id);
+        if (mapMarker && mapMarker.getContent) elements.push(mapMarker.getContent());
+        const fallbackMarker = state.fallbackMarkers.get(shop.id);
+        if (fallbackMarker) elements.push(fallbackMarker);
+        for (const element of elements) {
+          element.classList.remove("overview", "district-focus", "muted", "selected", "hidden");
+          if (state.level === "L1") element.classList.add("overview");
+          else if (shop.district !== state.district) element.classList.add("hidden");
+          else if (state.level === "L2") element.classList.add("district-focus");
+          else if (shop.id === state.shop?.id) element.classList.add("selected");
+          else element.classList.add("muted");
+        }
+      }
+    }
+
+    function syncFallbackView() {
+      const showLabels = state.level === "L1";
+      for (const label of state.fallbackDistricts.values()) label.classList.toggle("hidden", !showLabels);
+      for (const [district, region] of state.fallbackRegions) {
+        region.classList.toggle("hidden", state.level !== "L1" && district !== state.district);
+      }
+      let scale = 1;
+      let origin = [50, 50];
+      let shiftX = 0;
+      let shiftY = 0;
+      if (state.district) {
+        const shops = state.shops.filter((shop) => shop.district === state.district);
+        const center = shopCenter(shops);
+        origin = state.districtAnchors.get(state.district) || geoToPercent(center[0], center[1]);
+        scale = state.level === "L3" ? 1.12 : 1.06;
+        if (state.level === "L3" && innerWidth > 720) shiftX = Math.min(0, 55 - origin[0]);
+        if (state.level === "L3" && innerWidth <= 720) shiftY = Math.min(0, 40 - origin[1]);
+      }
+      els.fallbackStage.style.transformOrigin = `${origin[0]}% ${origin[1]}%`;
+      els.fallbackStage.style.transform = `translate(${shiftX}%, ${shiftY}%) scale(${scale})`;
+    }
+
+    function createDistrictButton(district, shops) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "district-card";
+      button.style.setProperty("--district-color", districtColor(district));
+      const name = document.createElement("strong");
+      name.textContent = district;
+      const count = document.createElement("span");
+      count.textContent = `${shops.length} 家咖啡店`;
+      button.append(name, count);
+      button.addEventListener("click", () => setView("L2", { district }));
+      return button;
+    }
+
+    function renderDistrictList() {
+      els.districtGrid.replaceChildren();
+      for (const [district, shops] of groupByDistrict()) {
+        els.districtGrid.appendChild(createDistrictButton(district, shops));
+      }
+    }
+
+    function renderQuality() {
+      const errors = state.issues.filter((item) => item.level === "error").length;
+      const warnings = state.issues.length - errors;
+      els.qualityButton.textContent = state.issues.length ? `数据质量 ${state.issues.length}` : "数据质量 ✓";
+      els.qualityButton.classList.toggle("has-issues", state.issues.length > 0);
+      els.qualitySummary.textContent = `有效门店 ${state.shops.length} 家 · 错误 ${errors} 条 · 提醒 ${warnings} 条`;
+      els.issueList.replaceChildren();
+      if (!state.issues.length) {
+        const li = document.createElement("li");
+        li.textContent = "当前数据未发现结构问题。";
+        els.issueList.appendChild(li);
+        return;
+      }
+      for (const issue of state.issues) {
+        const li = document.createElement("li");
+        const name = document.createElement("strong");
+        name.textContent = `${issue.level === "error" ? "错误" : "提醒"} · ${issue.id}`;
+        li.append(name, document.createTextNode(`：${issue.message}`));
+        els.issueList.appendChild(li);
+      }
+    }
+
+    function showNotice(title, message) {
+      els.noticeTitle.textContent = title;
+      els.noticeText.textContent = message;
+      els.notice.hidden = false;
+      clearTimeout(showNotice.timer);
+      showNotice.timer = setTimeout(() => { els.notice.hidden = true; }, 5200);
+    }
+
+    function districtSearch(name) {
+      return new Promise((resolve) => {
+        const search = new state.AMap.DistrictSearch({ subdistrict: 0, extensions: "all", level: "district" });
+        const districtName = name.endsWith("区") ? name : `${name}区`;
+        search.search(`上海市${districtName}`, (status, result) => {
+          const item = status === "complete" && result.districtList && result.districtList[0];
+          resolve(item || null);
+        });
+      });
+    }
+
+    function shopCenter(shops) {
+      const sum = shops.reduce((value, shop) => [value[0] + shop.lng, value[1] + shop.lat], [0, 0]);
+      return [sum[0] / shops.length, sum[1] / shops.length];
+    }
+
+    function createDistrictLabel(district, shops, position) {
+      const content = document.createElement("button");
+      content.type = "button";
+      content.className = "district-label";
+      content.style.setProperty("--label-color", districtColor(district));
+      const title = document.createElement("strong");
+      title.textContent = district;
+      const count = document.createElement("span");
+      count.textContent = `${shops.length} 家咖啡店`;
+      content.append(title, count);
+      content.addEventListener("click", () => setView("L2", { district }));
+      return new state.AMap.Marker({ position, content, anchor: "center", zIndex: 120 });
+    }
+
+    async function buildDistrictOverlays() {
+      const groups = groupByDistrict();
+      for (const [district, shops] of groups) {
+        const result = await districtSearch(district);
+        const color = districtColor(district);
+        const center = result && result.center ? [result.center.lng, result.center.lat] : shopCenter(shops);
+        const polygons = [];
+        if (result && result.boundaries) {
+          for (const boundary of result.boundaries) {
+            const polygon = new state.AMap.Polygon({
+              path: boundary,
+              fillColor: color,
+              fillOpacity: .42,
+              strokeColor: "#24332c",
+              strokeWeight: 2,
+              strokeOpacity: .72,
+              bubble: true,
+              cursor: "pointer",
+              zIndex: 20
+            });
+            polygon.on("click", () => setView("L2", { district }));
+            polygons.push(polygon);
+          }
+        } else {
+          addIssue("warning", district, "行政区边界加载失败，将使用门店中心定位");
+        }
+        state.polygons.set(district, polygons);
+        state.districtLabels.set(district, createDistrictLabel(district, shops, center));
+      }
+    }
+
+    function createShopMarker(shop) {
+      const content = document.createElement("button");
+      content.type = "button";
+      content.className = "flower-marker";
+      content.dataset.shopId = shop.id;
+      content.style.setProperty("--sway-delay", swayDelay(shop));
+      const img = document.createElement("img");
+      img.src = markerImage(shop);
+      img.alt = `${shop.name} 花束标记`;
+      img.addEventListener("error", fallbackImage);
+      const label = document.createElement("span");
+      label.textContent = shop.name;
+      content.append(img, label);
+      const marker = new state.AMap.Marker({
+        position: [shop.lng, shop.lat], content, anchor: "bottom-center", zIndex: 100
+      });
+      marker.on("click", () => {
+        state.suppressMapClick = true;
+        if (state.level === "L1") setView("L2", { district: shop.district });
+        else setView("L3", { shop });
+        setTimeout(() => { state.suppressMapClick = false; }, 0);
+      });
+      return marker;
+    }
+
+    function buildShopMarkers() {
+      for (const shop of state.shops) state.shopMarkers.set(shop.id, createShopMarker(shop));
+    }
+
+    function clearMapOverlays() {
+      if (!state.map) return;
+      const overlays = [];
+      for (const polygons of state.polygons.values()) overlays.push(...polygons);
+      overlays.push(...state.districtLabels.values(), ...state.shopMarkers.values());
+      if (overlays.length) state.map.remove(overlays);
+    }
+
+    function selectedMarkerElement(shop) {
+      if (!shop) return null;
+      const marker = state.shopMarkers.get(shop.id);
+      return marker && marker.getContent ? marker.getContent() : null;
+    }
+
+    function fitPadding(level) {
+      if (innerWidth <= 720) {
+        return level === "L1" ? [120, 20, 350, 20] : [110, 20, 80, 20];
+      }
+      return [110, 390, 100, 360];
+    }
+
+    function updateBreadcrumb() {
+      els.breadcrumb.replaceChildren();
+      const makeButton = (text, handler) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = text;
+        button.addEventListener("click", handler);
+        return button;
+      };
+      els.breadcrumb.appendChild(makeButton("上海", () => setView("L1")));
+      if (state.district) {
+        const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "/";
+        els.breadcrumb.append(sep, makeButton(state.district, () => setView("L2", { district: state.district })));
+      }
+      if (state.shop) {
+        const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "/";
+        const current = document.createElement("strong"); current.textContent = state.shop.name;
+        els.breadcrumb.append(sep, current);
+      }
+    }
+
+    function showShopCard(shop) {
+      const image = document.getElementById("card-image");
+      image.src = markerImage(shop);
+      image.alt = `${shop.name} 花束插画`;
+      image.onerror = fallbackImage;
+      document.getElementById("card-kicker").textContent = `${shop.district} · ${TYPE_LABELS[shop.type] || shop.type || "咖啡店"}`;
+      document.getElementById("card-name").textContent = shop.name;
+      document.getElementById("card-address").textContent = shop.address;
+      document.getElementById("card-rating").textContent = Number.isFinite(Number(shop.rating)) ? Number(shop.rating).toFixed(1) : "暂无";
+      document.getElementById("card-reviews").textContent = Number.isFinite(Number(shop.reviews)) ? Number(shop.reviews).toLocaleString("zh-CN") : "暂无";
+      document.getElementById("card-price").textContent = Number.isFinite(Number(shop.avg_price)) ? `¥${Number(shop.avg_price)}` : "暂无";
+      document.getElementById("card-description").textContent = cleanText(shop.description) || "暂无店铺简介。";
+      document.getElementById("card-bean").textContent = cleanText(shop.bean_flavor) || "暂无信息";
+      document.getElementById("card-social").textContent = cleanText(shop.social) || "暂无信息";
+      document.getElementById("card-space").textContent = cleanText(shop.space) || "暂无信息";
+      document.getElementById("card-service").textContent = cleanText(shop.service) || "暂无信息";
+      document.getElementById("card-location-note").textContent = shop.location_accuracy === "district_approx"
+        ? "位置说明：源数据未提供地址与经纬度，目前仅按行政区近似展示。"
+        : "位置已经过精确坐标定位。";
+      const tags = cleanText(shop.tags).split(/[，,]/).map((tag) => tag.trim()).filter(Boolean);
+      const container = document.getElementById("card-tags");
+      container.replaceChildren(...tags.map((tag) => {
+        const item = document.createElement("span"); item.className = "tag"; item.textContent = tag; return item;
+      }));
+      els.card.classList.add("show");
+    }
+
+    function setView(level, options = {}) {
+      state.level = level;
+      if (level === "L1") {
+        state.district = null;
+        state.shop = null;
+      } else if (level === "L2") {
+        state.district = options.district || state.district;
+        state.shop = null;
+      } else if (level === "L3") {
+        state.shop = options.shop;
+        state.district = state.shop.district;
+      }
+
+      els.app.dataset.level = level;
+      els.districtList.classList.toggle("hidden", level !== "L1");
+      els.back.hidden = level === "L1";
+      els.card.classList.toggle("show", level === "L3");
+      if (level === "L3") showShopCard(state.shop);
+      updateFallbackMarkerPositions();
+      syncMarkerClasses();
+      syncFallbackView();
+
+      if (state.map) {
+        clearMapOverlays();
+        if (level === "L1") {
+          const overlays = [];
+          for (const polygons of state.polygons.values()) overlays.push(...polygons);
+          overlays.push(...state.districtLabels.values(), ...state.shopMarkers.values());
+          if (overlays.length) state.map.add(overlays);
+          state.map.setPitch(48);
+          state.map.setRotation(-10);
+          if (overlays.length) state.map.setFitView(overlays, false, fitPadding("L1"), 10);
+          else state.map.setZoomAndCenter(10.2, APP_CONFIG.initialCenter);
+        } else if (level === "L2") {
+          const shops = state.shops.filter((shop) => shop.district === state.district);
+          const overlays = [...(state.polygons.get(state.district) || [])];
+          overlays.push(...shops.map((shop) => state.shopMarkers.get(shop.id)).filter(Boolean));
+          if (overlays.length) state.map.add(overlays);
+          state.map.setPitch(54);
+          state.map.setRotation(-6);
+          if (overlays.length) state.map.setFitView(overlays, false, fitPadding("L2"), 15);
+        } else if (level === "L3") {
+          const shops = state.shops.filter((shop) => shop.district === state.district);
+          const markers = shops.map((shop) => state.shopMarkers.get(shop.id)).filter(Boolean);
+          state.map.add(markers);
+          state.map.setPitch(63);
+          state.map.setRotation(-12);
+          state.map.setZoomAndCenter(17, [state.shop.lng, state.shop.lat]);
+        }
+      }
+      updateBreadcrumb();
+    }
+
+    function goBack() {
+      if (state.level === "L3") setView("L2", { district: state.district });
+      else if (state.level === "L2") setView("L1");
+    }
+
+    async function initMap() {
+      state.shops = validateData(RAW_SHOPS);
+      renderDistrictList();
+      renderQuality();
+      buildFallbackMap();
+      setView("L1");
+    }
+
+    els.back.addEventListener("click", goBack);
+    els.cardClose.addEventListener("click", goBack);
+    els.qualityButton.addEventListener("click", () => { els.qualityPanel.hidden = !els.qualityPanel.hidden; });
+    els.qualityClose.addEventListener("click", () => { els.qualityPanel.hidden = true; });
+    els.fallbackMap.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      if (state.level === "L3") setView("L2", { district: state.district });
+    });
+    window.addEventListener("resize", () => {
+      clearTimeout(window.__coffeeGardenResizeTimer);
+      window.__coffeeGardenResizeTimer = setTimeout(() => {
+        computeOverviewPositions();
+        updateFallbackMarkerPositions();
+        syncFallbackView();
+      }, 120);
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        if (!els.qualityPanel.hidden) els.qualityPanel.hidden = true;
+        else goBack();
+      }
+    });
+    const backgroundAudio = document.getElementById("background-audio");
+    const startBackgroundAudio = () => {
+      backgroundAudio.play().then(() => {
+        window.removeEventListener("pointerdown", startBackgroundAudio);
+        window.removeEventListener("keydown", startBackgroundAudio);
+        window.removeEventListener("touchstart", startBackgroundAudio);
+      }).catch(() => {});
+    };
+    startBackgroundAudio();
+    window.addEventListener("pointerdown", startBackgroundAudio);
+    window.addEventListener("keydown", startBackgroundAudio);
+    window.addEventListener("touchstart", startBackgroundAudio, { passive: true });
+    initMap();
+  </script>
+</body>
+</html>
